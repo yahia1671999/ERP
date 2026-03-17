@@ -87,6 +87,7 @@ import {
   Sale, 
   Transaction, 
   UserProfile,
+  UserPermissions,
   Category,
   SystemSettings
 } from './types';
@@ -354,7 +355,7 @@ const Dashboard = ({
   );
 };
 
-const InventoryModule = ({ products, warehouses, categories }: { products: Product[], warehouses: Warehouse[], categories: Category[] }) => {
+const InventoryModule = ({ products, warehouses, categories, canDo }: { products: Product[], warehouses: Warehouse[], categories: Category[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -381,6 +382,18 @@ const InventoryModule = ({ products, warehouses, categories }: { products: Produ
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    if (editingProduct) {
+      if (!canDo('inventory', 'canEdit')) {
+        alert('ليس لديك صلاحية التعديل');
+        return;
+      }
+    } else {
+      if (!canDo('inventory', 'canAdd')) {
+        alert('ليس لديك صلاحية الإضافة');
+        return;
+      }
+    }
+
     const data: any = {
       name: formData.get('name') as string,
       sku: formData.get('sku') as string,
@@ -433,10 +446,12 @@ const InventoryModule = ({ products, warehouses, categories }: { products: Produ
             <option value="all">كل التصنيفات</option>
             {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
-          <Button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}>
-            <Plus className="w-4 h-4 ml-2" />
-            إضافة منتج
-          </Button>
+          {canDo('inventory', 'canAdd') && (
+            <Button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}>
+              <Plus className="w-4 h-4 ml-2" />
+              إضافة منتج
+            </Button>
+          )}
         </div>
       </div>
 
@@ -475,9 +490,26 @@ const InventoryModule = ({ products, warehouses, categories }: { products: Produ
                     </span>
                   </td>
                   <td className="px-6 py-4">
-                    <Button variant="ghost" size="sm" onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}>
-                      تعديل
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {canDo('inventory', 'canEdit') && (
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}>
+                          تعديل
+                        </Button>
+                      )}
+                      {canDo('inventory', 'canDelete') && (
+                        <Button variant="danger" size="sm" onClick={async () => {
+                          if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
+                            try {
+                              await deleteDoc(doc(db, 'products', product.id!));
+                            } catch (err) {
+                              handleFirestoreError(err, OperationType.DELETE, `products/${product.id}`);
+                            }
+                          }
+                        }}>
+                          حذف
+                        </Button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -582,7 +614,7 @@ const InventoryModule = ({ products, warehouses, categories }: { products: Produ
   );
 };
 
-const PurchasesModule = ({ purchases, suppliers, products, warehouses }: { purchases: Purchase[], suppliers: Supplier[], products: Product[], warehouses: Warehouse[] }) => {
+const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: { purchases: Purchase[], suppliers: Supplier[], products: Product[], warehouses: Warehouse[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState('');
@@ -1152,7 +1184,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses }: { purch
   );
 };
 
-const SalesModule = ({ sales, customers, products, settings }: { sales: Sale[], customers: Customer[], products: Product[], settings: SystemSettings }) => {
+const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: Sale[], customers: Customer[], products: Product[], settings: SystemSettings, canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -1632,7 +1664,7 @@ const SalesModule = ({ sales, customers, products, settings }: { sales: Sale[], 
   );
 };
 
-const AccountingModule = ({ transactions }: { transactions: Transaction[] }) => {
+const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -1696,10 +1728,12 @@ const AccountingModule = ({ transactions }: { transactions: Transaction[] }) => 
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
           />
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4 ml-2" />
-            إضافة قيد يدوي
-          </Button>
+          {canDo('accounting', 'canAdd') && (
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="w-4 h-4 ml-2" />
+              إضافة قيد يدوي
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1767,7 +1801,7 @@ const AccountingModule = ({ transactions }: { transactions: Transaction[] }) => 
   );
 };
 
-const WarehousesModule = ({ warehouses, products }: { warehouses: Warehouse[], products: Product[] }) => {
+const WarehousesModule = ({ warehouses, products, canDo }: { warehouses: Warehouse[], products: Product[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
 
@@ -1894,7 +1928,7 @@ const WarehousesModule = ({ warehouses, products }: { warehouses: Warehouse[], p
   );
 };
 
-const StocktakingModule = ({ products, warehouses }: { products: Product[], warehouses: Warehouse[] }) => {
+const StocktakingModule = ({ products, warehouses, canDo }: { products: Product[], warehouses: Warehouse[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [counts, setCounts] = useState<{ [productId: string]: number }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1910,6 +1944,10 @@ const StocktakingModule = ({ products, warehouses }: { products: Product[], ware
 
   const handleSubmit = async () => {
     if (!selectedWarehouseId) return;
+    if (!canDo('stocktaking', 'canAdd')) {
+      alert('ليس لديك صلاحية إجراء الجرد');
+      return;
+    }
     setIsSubmitting(true);
     try {
       const batch = writeBatch(db);
@@ -2018,13 +2056,15 @@ const StocktakingModule = ({ products, warehouses }: { products: Product[], ware
           </div>
           
           <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
-            <Button 
-              onClick={handleSubmit} 
-              disabled={isSubmitting || warehouseProducts.length === 0}
-              className="px-8"
-            >
-              {isSubmitting ? 'جاري الحفظ...' : 'اعتماد نتيجة الجرد'}
-            </Button>
+            {canDo('stocktaking', 'canAdd') && (
+              <Button 
+                onClick={handleSubmit} 
+                disabled={isSubmitting || warehouseProducts.length === 0}
+                className="px-8"
+              >
+                {isSubmitting ? 'جاري الحفظ...' : 'اعتماد نتيجة الجرد'}
+              </Button>
+            )}
           </div>
         </Card>
       )}
@@ -2032,7 +2072,7 @@ const StocktakingModule = ({ products, warehouses }: { products: Product[], ware
   );
 };
 
-const CustomersModule = ({ customers }: { customers: Customer[] }) => {
+const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -2075,10 +2115,12 @@ const CustomersModule = ({ customers }: { customers: Customer[] }) => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4 ml-2" />
-            إضافة عميل جديد
-          </Button>
+          {canDo('customers', 'canAdd') && (
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="w-4 h-4 ml-2" />
+              إضافة عميل جديد
+            </Button>
+          )}
         </div>
       </div>
 
@@ -2132,7 +2174,7 @@ const CustomersModule = ({ customers }: { customers: Customer[] }) => {
   );
 };
 
-const SuppliersModule = ({ suppliers }: { suppliers: Supplier[] }) => {
+const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -2178,10 +2220,12 @@ const SuppliersModule = ({ suppliers }: { suppliers: Supplier[] }) => {
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4 ml-2" />
-            إضافة مورد جديد
-          </Button>
+          {canDo('suppliers', 'canAdd') && (
+            <Button onClick={() => setIsModalOpen(true)}>
+              <Plus className="w-4 h-4 ml-2" />
+              إضافة مورد جديد
+            </Button>
+          )}
         </div>
       </div>
 
@@ -2254,7 +2298,7 @@ const SuppliersModule = ({ suppliers }: { suppliers: Supplier[] }) => {
 };
 
 
-const CategoriesModule = ({ categories }: { categories: Category[] }) => {
+const CategoriesModule = ({ categories, canDo }: { categories: Category[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
@@ -2335,6 +2379,7 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [selectedScreens, setSelectedScreens] = useState<string[]>([]);
+  const [userPermissions, setUserPermissions] = useState<{ [screenId: string]: UserPermissions }>({});
 
   const availableScreens = [
     { id: 'dashboard', label: 'لوحة التحكم' },
@@ -2352,8 +2397,10 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
   useEffect(() => {
     if (editingUser) {
       setSelectedScreens(editingUser.allowedScreens || []);
+      setUserPermissions(editingUser.permissions || {});
     } else {
       setSelectedScreens([]);
+      setUserPermissions({});
     }
   }, [editingUser]);
 
@@ -2386,6 +2433,7 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
       role: formData.get('role') as string,
       isActive: formData.get('isActive') === 'true',
       allowedScreens: selectedScreens,
+      permissions: userPermissions,
     };
 
     try {
@@ -2582,26 +2630,90 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
               <option value="false">موقوف</option>
             </select>
           </div>
+
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الشاشات المسموحة</label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 border border-slate-200 rounded-lg p-3 bg-slate-50 max-h-48 overflow-y-auto">
-              {availableScreens.map(screen => (
-                <label key={screen.id} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                    checked={selectedScreens.includes(screen.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedScreens([...selectedScreens, screen.id]);
-                      } else {
-                        setSelectedScreens(selectedScreens.filter(id => id !== screen.id));
-                      }
-                    }}
-                  />
-                  <span className="text-sm text-slate-700">{screen.label}</span>
-                </label>
-              ))}
+            <label className="text-sm font-medium text-slate-700">الشاشات والصلاحيات</label>
+            <div className="border border-slate-200 rounded-lg bg-slate-50 overflow-hidden">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-slate-100 border-b border-slate-200">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold text-slate-600">الشاشة</th>
+                    <th className="px-2 py-2 font-semibold text-slate-600 text-center">دخول</th>
+                    <th className="px-2 py-2 font-semibold text-slate-600 text-center">إضافة</th>
+                    <th className="px-2 py-2 font-semibold text-slate-600 text-center">تعديل</th>
+                    <th className="px-2 py-2 font-semibold text-slate-600 text-center">حذف</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {availableScreens.map(screen => (
+                    <tr key={screen.id} className="hover:bg-white transition-colors">
+                      <td className="px-3 py-2 font-medium text-slate-700">{screen.label}</td>
+                      <td className="px-2 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          checked={selectedScreens.includes(screen.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedScreens([...selectedScreens, screen.id]);
+                              if (!userPermissions[screen.id]) {
+                                setUserPermissions({
+                                  ...userPermissions,
+                                  [screen.id]: { canAdd: true, canEdit: true, canDelete: true }
+                                });
+                              }
+                            } else {
+                              setSelectedScreens(selectedScreens.filter(id => id !== screen.id));
+                            }
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          disabled={!selectedScreens.includes(screen.id)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30"
+                          checked={userPermissions[screen.id]?.canAdd || false}
+                          onChange={(e) => {
+                            setUserPermissions({
+                              ...userPermissions,
+                              [screen.id]: { ...userPermissions[screen.id], canAdd: e.target.checked }
+                            });
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          disabled={!selectedScreens.includes(screen.id)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30"
+                          checked={userPermissions[screen.id]?.canEdit || false}
+                          onChange={(e) => {
+                            setUserPermissions({
+                              ...userPermissions,
+                              [screen.id]: { ...userPermissions[screen.id], canEdit: e.target.checked }
+                            });
+                          }}
+                        />
+                      </td>
+                      <td className="px-2 py-2 text-center">
+                        <input
+                          type="checkbox"
+                          disabled={!selectedScreens.includes(screen.id)}
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30"
+                          checked={userPermissions[screen.id]?.canDelete || false}
+                          onChange={(e) => {
+                            setUserPermissions({
+                              ...userPermissions,
+                              [screen.id]: { ...userPermissions[screen.id], canDelete: e.target.checked }
+                            });
+                          }}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
           <div className="pt-4">
@@ -2782,6 +2894,11 @@ export default function App() {
   const handleLogout = () => signOut(auth);
 
   const currentUserProfile = users.find(u => u.uid === user?.uid || u.email === user?.email);
+
+  const canDo = (screenId: string, action: 'canAdd' | 'canEdit' | 'canDelete') => {
+    if (currentUserProfile?.role === 'admin' || users.length === 0) return true;
+    return currentUserProfile?.permissions?.[screenId]?.[action] === true;
+  };
 
   const navItems = useMemo(() => {
     let items = [
@@ -2989,15 +3106,15 @@ export default function App() {
               transition={{ duration: 0.2 }}
             >
               {activeTab === 'dashboard' && <Dashboard products={products} sales={sales} purchases={purchases} transactions={transactions} />}
-              {activeTab === 'inventory' && <InventoryModule products={products} warehouses={warehouses} categories={categories} />}
-              {activeTab === 'warehouses' && <WarehousesModule warehouses={warehouses} products={products} />}
-              {activeTab === 'stocktaking' && <StocktakingModule products={products} warehouses={warehouses} />}
-              {activeTab === 'purchases' && <PurchasesModule purchases={purchases} suppliers={suppliers} products={products} warehouses={warehouses} />}
-              {activeTab === 'sales' && <SalesModule sales={sales} customers={customers} products={products} settings={settings} />}
-              {activeTab === 'accounting' && <AccountingModule transactions={transactions} />}
-              {activeTab === 'customers' && <CustomersModule customers={customers} />}
-              {activeTab === 'suppliers' && <SuppliersModule suppliers={suppliers} />}
-              {activeTab === 'categories' && <CategoriesModule categories={categories} />}
+              {activeTab === 'inventory' && <InventoryModule products={products} warehouses={warehouses} categories={categories} canDo={canDo} />}
+              {activeTab === 'warehouses' && <WarehousesModule warehouses={warehouses} products={products} canDo={canDo} />}
+              {activeTab === 'stocktaking' && <StocktakingModule products={products} warehouses={warehouses} canDo={canDo} />}
+              {activeTab === 'purchases' && <PurchasesModule purchases={purchases} suppliers={suppliers} products={products} warehouses={warehouses} canDo={canDo} />}
+              {activeTab === 'sales' && <SalesModule sales={sales} customers={customers} products={products} settings={settings} canDo={canDo} />}
+              {activeTab === 'accounting' && <AccountingModule transactions={transactions} canDo={canDo} />}
+              {activeTab === 'customers' && <CustomersModule customers={customers} canDo={canDo} />}
+              {activeTab === 'suppliers' && <SuppliersModule suppliers={suppliers} canDo={canDo} />}
+              {activeTab === 'categories' && <CategoriesModule categories={categories} canDo={canDo} />}
               {activeTab === 'settings' && (currentUserProfile?.role === 'admin' || users.length === 0) && <SettingsModule settings={settings} users={users} />}
             </motion.div>
           </AnimatePresence>

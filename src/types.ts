@@ -88,6 +88,12 @@ export interface Category {
   name: string;
 }
 
+export interface UserPermissions {
+  canAdd: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -95,6 +101,9 @@ export interface UserProfile {
   displayName?: string;
   isActive?: boolean;
   allowedScreens?: string[];
+  permissions?: {
+    [screenId: string]: UserPermissions;
+  };
 }
 
 export interface SystemSettings {

@@ -101,6 +101,18 @@ service cloud.firestore {
              data.amount is number && data.amount >= 0;
     }
 
+    function hasPermission(screenId, action) {
+      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
+      return isAdmin() || (
+        isAuthenticated() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        userDoc.data.isActive == true &&
+        screenId in userDoc.data.allowedScreens &&
+        action in userDoc.data.permissions[screenId] &&
+        userDoc.data.permissions[screenId][action] == true
+      );
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -130,50 +142,58 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow read: if isAuthenticated();
-      allow create, update: if (isAdmin() || isActiveUser()) && isValidProduct(request.resource.data);
-      allow delete: if isAdmin() || isActiveUser();
+      allow create: if hasPermission('inventory', 'canAdd') && isValidProduct(request.resource.data);
+      allow update: if hasPermission('inventory', 'canEdit') && isValidProduct(request.resource.data);
+      allow delete: if hasPermission('inventory', 'canDelete');
     }
 
     match /warehouses/{warehouseId} {
       allow read: if isAuthenticated();
-      allow create, update: if (isAdmin() || isActiveUser()) && hasRequiredFields(['name']);
-      allow delete: if isAdmin() || isActiveUser();
+      allow create: if hasPermission('warehouses', 'canAdd') && hasRequiredFields(['name']);
+      allow update: if hasPermission('warehouses', 'canEdit') && hasRequiredFields(['name']);
+      allow delete: if hasPermission('warehouses', 'canDelete');
     }
 
     match /suppliers/{supplierId} {
       allow read: if isAuthenticated();
-      allow create, update: if (isAdmin() || isActiveUser()) && isValidSupplier(request.resource.data);
-      allow delete: if isAdmin() || isActiveUser();
+      allow create: if hasPermission('suppliers', 'canAdd') && isValidSupplier(request.resource.data);
+      allow update: if hasPermission('suppliers', 'canEdit') && isValidSupplier(request.resource.data);
+      allow delete: if hasPermission('suppliers', 'canDelete');
     }
 
     match /customers/{customerId} {
       allow read: if isAuthenticated();
-      allow create, update: if (isAdmin() || isActiveUser()) && isValidCustomer(request.resource.data);
-      allow delete: if isAdmin() || isActiveUser();
+      allow create: if hasPermission('customers', 'canAdd') && isValidCustomer(request.resource.data);
+      allow update: if hasPermission('customers', 'canEdit') && isValidCustomer(request.resource.data);
+      allow delete: if hasPermission('customers', 'canDelete');
     }
 
     match /purchases/{purchaseId} {
       allow read: if isAuthenticated();
-      allow create: if (isAdmin() || isActiveUser()) && isValidPurchase(request.resource.data);
-      allow update, delete: if isAdmin() || isActiveUser();
+      allow create: if hasPermission('purchases', 'canAdd') && isValidPurchase(request.resource.data);
+      allow update: if hasPermission('purchases', 'canEdit');
+      allow delete: if hasPermission('purchases', 'canDelete');
     }
 
     match /sales/{saleId} {
       allow read: if isAuthenticated();
-      allow create: if (isAdmin() || isActiveUser()) && isValidSale(request.resource.data);
-      allow update, delete: if isAdmin() || isActiveUser();
+      allow create: if hasPermission('sales', 'canAdd') && isValidSale(request.resource.data);
+      allow update: if hasPermission('sales', 'canEdit');
+      allow delete: if hasPermission('sales', 'canDelete');
     }
 
     match /transactions/{transactionId} {
       allow read: if isAuthenticated();
-      allow create: if (isAdmin() || isActiveUser()) && isValidTransaction(request.resource.data);
-      allow update, delete: if isAdmin() || isActiveUser();
+      allow create: if hasPermission('accounting', 'canAdd') && isValidTransaction(request.resource.data);
+      allow update: if hasPermission('accounting', 'canEdit');
+      allow delete: if hasPermission('accounting', 'canDelete');
     }
 
     match /categories/{categoryId} {
       allow read: if isAuthenticated();
-      allow create, update: if (isAdmin() || isActiveUser()) && hasRequiredFields(['name']);
-      allow delete: if isAdmin() || isActiveUser();
+      allow create: if hasPermission('categories', 'canAdd') && hasRequiredFields(['name']);
+      allow update: if hasPermission('categories', 'canEdit') && hasRequiredFields(['name']);
+      allow delete: if hasPermission('categories', 'canDelete');
     }
 
     match /settings/{settingId} {
