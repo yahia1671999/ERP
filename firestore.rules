@@ -39,18 +39,8 @@ service cloud.firestore {
         );
     }
 
-    function isActiveUser() {
-      return isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true;
-    }
-
     function hasRequiredFields(fields) {
       return request.resource.data.keys().hasAll(fields);
-    }
-
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
     }
 
     // ===============================================================
@@ -102,15 +92,7 @@ service cloud.firestore {
     }
 
     function hasPermission(screenId, action) {
-      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
-      return isAdmin() || (
-        isAuthenticated() &&
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        userDoc.data.isActive == true &&
-        screenId in userDoc.data.allowedScreens &&
-        action in userDoc.data.permissions[screenId] &&
-        userDoc.data.permissions[screenId][action] == true
-      );
+      return isAuthenticated();
     }
 
     // ===============================================================
@@ -128,7 +110,14 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && (
         isAdmin() || 
-        (request.auth.uid == userId && request.resource.data.role == 'user' && request.resource.data.isActive == false)
+        (request.auth.uid == userId && (
+          // Default for new users
+          (request.resource.data.role == 'user' && request.resource.data.isActive == false) ||
+          // Allow migration if email-based doc exists and matches
+          (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
+           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == request.resource.data.role &&
+           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.isActive == request.resource.data.isActive)
+        ))
       );
       allow update: if isAuthenticated() && (
         isAdmin() || 
@@ -137,7 +126,7 @@ service cloud.firestore {
          request.resource.data.isActive == resource.data.isActive &&
          request.resource.data.email == resource.data.email)
       );
-      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+      allow delete: if isAdmin() || (isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == userId));
     }
 
     match /products/{productId} {

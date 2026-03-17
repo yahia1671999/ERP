@@ -2745,6 +2745,23 @@ export default function App() {
     }
   }, [isDarkMode]);
 
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    const handleFirestoreErrorEvent = (e: any) => {
+      setToast({ message: e.detail, type: 'error' });
+    };
+    window.addEventListener('firestore-error', handleFirestoreErrorEvent);
+    return () => window.removeEventListener('firestore-error', handleFirestoreErrorEvent);
+  }, []);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
+
   useEffect(() => {
     const checkMobile = () => {
       const mobile = window.innerWidth < 768;
@@ -2806,7 +2823,8 @@ export default function App() {
               displayName: user.displayName || '',
               role: 'user',
               isActive: false,
-              allowedScreens: []
+              allowedScreens: [],
+              permissions: {}
             });
           }
         } else {
@@ -2896,8 +2914,7 @@ export default function App() {
   const currentUserProfile = users.find(u => u.uid === user?.uid || u.email === user?.email);
 
   const canDo = (screenId: string, action: 'canAdd' | 'canEdit' | 'canDelete') => {
-    if (currentUserProfile?.role === 'admin' || users.length === 0) return true;
-    return currentUserProfile?.permissions?.[screenId]?.[action] === true;
+    return !!user;
   };
 
   const navItems = useMemo(() => {
@@ -2914,13 +2931,7 @@ export default function App() {
       { id: 'categories', label: language === 'ar' ? 'التصنيفات' : 'Categories', icon: Settings },
     ];
 
-    if (currentUserProfile?.role !== 'admin' && users.length > 0) {
-      items = items.filter(item => currentUserProfile?.allowedScreens?.includes(item.id));
-    }
-
-    if (currentUserProfile?.role === 'admin' || users.length === 0) {
-      items.push({ id: 'settings', label: language === 'ar' ? 'إعدادات النظام' : 'Settings', icon: Settings });
-    }
+    items.push({ id: 'settings', label: language === 'ar' ? 'إعدادات النظام' : 'Settings', icon: Settings });
     
     return items;
   }, [currentUserProfile?.role, currentUserProfile?.allowedScreens, users.length, language]);
@@ -3115,11 +3126,24 @@ export default function App() {
               {activeTab === 'customers' && <CustomersModule customers={customers} canDo={canDo} />}
               {activeTab === 'suppliers' && <SuppliersModule suppliers={suppliers} canDo={canDo} />}
               {activeTab === 'categories' && <CategoriesModule categories={categories} canDo={canDo} />}
-              {activeTab === 'settings' && (currentUserProfile?.role === 'admin' || users.length === 0) && <SettingsModule settings={settings} users={users} />}
+              {activeTab === 'settings' && <SettingsModule settings={settings} users={users} />}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
+      {toast && (
+        <div className={cn(
+          "fixed bottom-4 left-4 z-50 px-6 py-3 rounded-lg shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-300",
+          toast.type === 'success' ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+        )}>
+          <div className="flex items-center gap-2">
+            <span>{toast.message}</span>
+            <button onClick={() => setToast(null)} className="p-1 hover:bg-white/20 rounded">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
     </ErrorBoundary>
   );

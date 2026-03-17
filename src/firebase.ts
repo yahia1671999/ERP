@@ -31,9 +31,18 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     path
   };
   console.error('Firestore Error: ', JSON.stringify(errInfo));
-  // We don't always want to throw if it's a listener, but the directive says to throw.
-  // However, for listeners, throwing might crash the component.
-  // The directive says: "catch the error and throw a new error with a very specific JSON object"
+  
+  // Show user-friendly alert
+  let message = 'حدث خطأ في قاعدة البيانات';
+  if (errInfo.error.includes('permission-denied') || errInfo.error.includes('Missing or insufficient permissions')) {
+    message = 'ليس لديك صلاحية للقيام بهذا الإجراء. يرجى التأكد من تفعيل حسابك ومنحك الصلاحيات اللازمة من قبل المسؤول.';
+  }
+  
+  // We use a custom alert if possible, but window.alert is not allowed in iframe.
+  // However, the baseline says "try to avoid using APIs such as window.alert or window.open".
+  // I'll use a custom event to show a toast or alert in the main App component.
+  window.dispatchEvent(new CustomEvent('firestore-error', { detail: message }));
+  
   throw new Error(JSON.stringify(errInfo));
 }
 
