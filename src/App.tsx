@@ -30,7 +30,13 @@ import {
   MapPin,
   Moon,
   Sun,
-  Globe
+  Globe,
+  CreditCard,
+  Trash2,
+  Printer,
+  Eye,
+  FileText,
+  Paperclip
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -232,12 +238,18 @@ const Dashboard = ({
   products, 
   sales, 
   purchases, 
-  transactions 
+  transactions,
+  customers,
+  suppliers,
+  onNavigate
 }: { 
   products: Product[], 
   sales: Sale[], 
   purchases: Purchase[], 
-  transactions: Transaction[] 
+  transactions: Transaction[],
+  customers: Customer[],
+  suppliers: Supplier[],
+  onNavigate: (tab: string) => void
 }) => {
   const { t, dir, language } = useTranslation();
   const totalSales = useMemo(() => sales.reduce((acc, s) => acc + s.total, 0), [sales]);
@@ -248,6 +260,22 @@ const Dashboard = ({
     const expense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     return income - expense;
   }, [transactions]);
+
+  const topCustomers = useMemo(() => {
+    const customerSales = customers.map(c => ({
+      ...c,
+      totalVolume: sales.filter(s => s.customerId === c.id).reduce((acc, s) => acc + s.total, 0)
+    })).sort((a, b) => b.totalVolume - a.totalVolume).slice(0, 5);
+    return customerSales;
+  }, [customers, sales]);
+
+  const topSuppliers = useMemo(() => {
+    const supplierPurchases = suppliers.map(s => ({
+      ...s,
+      totalVolume: purchases.filter(p => p.supplierId === s.id).reduce((acc, p) => acc + p.total, 0)
+    })).sort((a, b) => b.totalVolume - a.totalVolume).slice(0, 5);
+    return supplierPurchases;
+  }, [suppliers, purchases]);
 
   const salesData = useMemo(() => {
     const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -274,7 +302,7 @@ const Dashboard = ({
   return (
     <div className="space-y-8" dir={dir}>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="p-6">
+        <Card className="p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => onNavigate('sales')}>
           <div className="flex items-center justify-between">
             <div className={language === 'ar' ? 'text-right' : 'text-left'}>
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('totalSales')}</p>
@@ -285,7 +313,7 @@ const Dashboard = ({
             </div>
           </div>
         </Card>
-        <Card className="p-6">
+        <Card className="p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => onNavigate('purchases')}>
           <div className="flex items-center justify-between">
             <div className={language === 'ar' ? 'text-right' : 'text-left'}>
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('totalPurchases')}</p>
@@ -296,7 +324,7 @@ const Dashboard = ({
             </div>
           </div>
         </Card>
-        <Card className="p-6">
+        <Card className="p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => onNavigate('inventory')}>
           <div className="flex items-center justify-between">
             <div className={language === 'ar' ? 'text-right' : 'text-left'}>
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('stockValue')}</p>
@@ -307,7 +335,7 @@ const Dashboard = ({
             </div>
           </div>
         </Card>
-        <Card className="p-6">
+        <Card className="p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => onNavigate('accounting')}>
           <div className="flex items-center justify-between">
             <div className={language === 'ar' ? 'text-right' : 'text-left'}>
               <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('netProfit')}</p>
@@ -363,6 +391,466 @@ const Dashboard = ({
           </div>
         </Card>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h4 className={cn("text-base font-semibold text-slate-900 dark:text-white", language === 'ar' ? 'text-right' : 'text-left')}>{t('topCustomers')}</h4>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('customers')}>{t('viewAll')}</Button>
+          </div>
+          <div className="space-y-4">
+            {topCustomers.map(c => (
+              <div key={c.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl dark:bg-slate-900/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-bold dark:bg-indigo-900/30 dark:text-indigo-400">
+                    {c.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{c.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{c.phone}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-indigo-600 dark:text-indigo-400">{c.totalVolume.toLocaleString()} {t('egp')}</p>
+                  <p className="text-[10px] text-slate-400">{t('totalVolume')}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h4 className={cn("text-base font-semibold text-slate-900 dark:text-white", language === 'ar' ? 'text-right' : 'text-left')}>{t('topSuppliers')}</h4>
+            <Button variant="ghost" size="sm" onClick={() => onNavigate('suppliers')}>{t('viewAll')}</Button>
+          </div>
+          <div className="space-y-4">
+            {topSuppliers.map(s => (
+              <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl dark:bg-slate-900/50">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center text-red-600 font-bold dark:bg-red-900/30 dark:text-red-400">
+                    {s.name.charAt(0)}
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">{s.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{s.companyName}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-red-600 dark:text-red-400">{s.totalVolume.toLocaleString()} {t('egp')}</p>
+                  <p className="text-[10px] text-slate-400">{t('totalVolume')}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+const CashierModule = ({ products, customers, sales, settings, canDo }: { products: Product[], customers: Customer[], sales: Sale[], settings: SystemSettings | null, canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
+  const [cart, setCart] = useState<{ product: Product, quantity: number }[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'other'>('cash');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+  const [lastSale, setLastSale] = useState<Sale | null>(null);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (!searchQuery) return;
+    const exactMatch = products.find(p => p.barcode === searchQuery);
+    if (exactMatch) {
+      addToCart(exactMatch);
+      setSearchQuery('');
+    }
+  }, [searchQuery, products]);
+
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery) return [];
+    const query = searchQuery.toLowerCase();
+    return products.filter(p => 
+      p.name.toLowerCase().includes(query) || 
+      p.sku.toLowerCase().includes(query) ||
+      (p.barcode && p.barcode.toLowerCase().includes(query))
+    ).slice(0, 10);
+  }, [products, searchQuery]);
+
+  const addToCart = (product: Product) => {
+    setCart(prev => {
+      const existing = prev.find(item => item.product.id === product.id);
+      if (existing) {
+        return prev.map(item => 
+          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      }
+      return [...prev, { product, quantity: 1 }];
+    });
+    setSearchQuery('');
+  };
+
+  const removeFromCart = (productId: string) => {
+    setCart(prev => prev.filter(item => item.product.id !== productId));
+  };
+
+  const updateQuantity = (productId: string, delta: number) => {
+    setCart(prev => prev.map(item => {
+      if (item.product.id === productId) {
+        const newQty = Math.max(1, item.quantity + delta);
+        return { ...item, quantity: newQty };
+      }
+      return item;
+    }));
+  };
+
+  const total = useMemo(() => cart.reduce((acc, item) => acc + (item.product.price * item.quantity), 0), [cart]);
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    if (!canDo('sales', 'canAdd')) {
+      alert(t('permissionDenied'));
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const batch = writeBatch(db);
+      const saleId = `SALE-${Date.now()}`;
+      const saleData: Sale = {
+        invoiceNumber: saleId,
+        customerId: selectedCustomerId || 'walk-in',
+        date: new Date().toISOString(),
+        items: cart.map(item => ({
+          productId: item.product.id!,
+          quantity: item.quantity,
+          price: item.product.price,
+        })),
+        total,
+        discount: 0,
+        tax: 0,
+        paymentMethod,
+      };
+
+      // Add sale
+      const saleRef = doc(collection(db, 'sales'));
+      batch.set(saleRef, saleData);
+
+      // Update stock
+      for (const item of cart) {
+        const productRef = doc(db, 'products', item.product.id!);
+        batch.update(productRef, {
+          stock: increment(-item.quantity)
+        });
+      }
+
+      // Add accounting entry
+      const entryRef = doc(collection(db, 'transactions'));
+      batch.set(entryRef, {
+        date: new Date().toISOString(),
+        type: 'income',
+        amount: total,
+        category: t('sales'),
+        description: `${t('saleTo')} ${selectedCustomerId ? customers.find(c => c.id === selectedCustomerId)?.name : t('walkIn')} (${t(paymentMethod)})`,
+        referenceId: saleRef.id
+      });
+
+      await batch.commit();
+      setLastSale({ ...saleData, id: saleRef.id });
+      setCart([]);
+      setSelectedCustomerId('');
+      setPaymentMethod('cash');
+      setIsPrintModalOpen(true);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'sales');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAddCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    const data = {
+      name: formData.get('name') as string,
+      phone: formData.get('phone') as string,
+      email: formData.get('email') as string,
+    };
+
+    try {
+      const docRef = await addDoc(collection(db, 'customers'), data);
+      setSelectedCustomerId(docRef.id);
+      setIsCustomerModalOpen(false);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'customers');
+    }
+  };
+
+  const handlePrint = () => {
+    const printContent = document.getElementById('printable-invoice');
+    if (!printContent) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert(t('popupBlocked'));
+      return;
+    }
+
+    printWindow.document.write(`
+      <html dir="${dir}">
+        <head>
+          <title>Invoice ${lastSale?.invoiceNumber}</title>
+          <style>
+            body { font-family: sans-serif; padding: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { border-bottom: 1px solid #eee; padding: 10px; text-align: ${dir === 'rtl' ? 'right' : 'left'}; }
+            .text-center { text-align: center; }
+            .text-right { text-align: right; }
+            .font-bold { font-weight: bold; }
+            .mb-8 { margin-bottom: 2rem; }
+            .flex { display: flex; }
+            .justify-between { justify-content: space-between; }
+            @media print {
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          ${printContent.innerHTML}
+          <script>
+            window.onload = () => {
+              window.print();
+              window.onafterprint = () => window.close();
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 h-[calc(100vh-12rem)]" dir={dir}>
+      <div className="lg:col-span-2 flex flex-col space-y-4">
+        <Card className="p-4 dark:bg-slate-900 dark:border-slate-800">
+          <div className="relative">
+            <Search className={cn("absolute top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400", dir === 'rtl' ? 'right-4' : 'left-4')} />
+            <Input 
+              className={cn("h-12 text-lg", dir === 'rtl' ? 'pr-12 pl-4' : 'pl-12 pr-4')}
+              placeholder={t('searchProduct')}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoFocus
+            />
+          </div>
+          
+          {searchQuery && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredProducts.map(product => (
+                <button
+                  key={product.id}
+                  onClick={() => addToCart(product)}
+                  className="flex items-center p-4 bg-slate-50 hover:bg-indigo-50 rounded-xl transition-colors border border-slate-100 hover:border-indigo-200 dark:bg-slate-800 dark:border-slate-700 dark:hover:bg-indigo-900/20"
+                >
+                  <div className="flex-1 text-right">
+                    <h4 className="font-bold text-slate-900 dark:text-white">{product.name}</h4>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      {product.price} {t('egp')} | {t('stock')}: {product.stock}
+                      {product.barcode && ` | ${t('barcode')}: ${product.barcode}`}
+                    </p>
+                  </div>
+                  <Plus className="w-5 h-5 text-indigo-600 mr-4 dark:text-indigo-400" />
+                </button>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <div className="flex-1 overflow-y-auto pr-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+            {products.slice(0, 12).map(product => (
+              <button
+                key={product.id}
+                onClick={() => addToCart(product)}
+                className="flex flex-col items-center p-4 bg-white border border-slate-200 rounded-2xl hover:shadow-lg transition-all hover:border-indigo-300 dark:bg-slate-900 dark:border-slate-800"
+              >
+                <div className="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center mb-3 dark:bg-indigo-900/30">
+                  <Package className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                <span className="text-sm font-bold text-slate-900 text-center line-clamp-2 dark:text-white">{product.name}</span>
+                <span className="text-xs font-medium text-indigo-600 mt-1 dark:text-indigo-400">{product.price} {t('egp')}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="lg:col-span-1 flex flex-col h-full">
+        <Card className="flex-1 flex flex-col p-6 dark:bg-slate-900 dark:border-slate-800">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-2">
+              <ShoppingCart className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">{t('cart')}</h3>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => setCart([])} className="text-red-500 hover:text-red-600 hover:bg-red-50">
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+
+          <div className="space-y-4 mb-6">
+            <div className="flex gap-2">
+              <select
+                className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                value={selectedCustomerId}
+                onChange={(e) => setSelectedCustomerId(e.target.value)}
+              >
+                <option value="">{t('walkIn')}</option>
+                {customers.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <Button variant="outline" size="sm" onClick={() => setIsCustomerModalOpen(true)}>
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {(['cash', 'card', 'other'] as const).map((method) => (
+                <button
+                  key={method}
+                  onClick={() => setPaymentMethod(method)}
+                  className={cn(
+                    "py-2 px-1 rounded-lg border text-xs font-medium transition-all",
+                    paymentMethod === method 
+                      ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-100 dark:shadow-none" 
+                      : "bg-white border-slate-200 text-slate-600 hover:border-indigo-300 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400"
+                  )}
+                >
+                  {t(method)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-4 mb-6">
+            {cart.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 space-y-2">
+                <ShoppingCart className="w-12 h-12 opacity-20" />
+                <p>{t('emptyCart')}</p>
+              </div>
+            ) : (
+              cart.map(item => (
+                <div key={item.product.id} className="flex items-center gap-4 p-3 bg-slate-50 rounded-xl dark:bg-slate-800">
+                  <div className="flex-1">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">{item.product.name}</h4>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{item.product.price} {t('egp')}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => updateQuantity(item.product.id!, -1)} className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700">-</button>
+                    <span className="text-sm font-bold w-6 text-center">{item.quantity}</span>
+                    <button onClick={() => updateQuantity(item.product.id!, 1)} className="w-8 h-8 flex items-center justify-center bg-white border border-slate-200 rounded-lg dark:bg-slate-900 dark:border-slate-700">+</button>
+                  </div>
+                  <button onClick={() => removeFromCart(item.product.id!)} className="text-slate-400 hover:text-red-500">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="border-t border-slate-100 pt-6 space-y-4 dark:border-slate-800">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500 dark:text-slate-400">{t('totalAmount')}</span>
+              <span className="text-2xl font-bold text-indigo-600 dark:text-indigo-400">{total.toLocaleString()} {t('egp')}</span>
+            </div>
+            <Button 
+              className="w-full h-14 text-lg font-bold shadow-lg shadow-indigo-200 dark:shadow-none" 
+              disabled={cart.length === 0 || isProcessing}
+              onClick={handleCheckout}
+            >
+              {isProcessing ? t('saving') : (
+                <>
+                  <CreditCard className={`w-5 h-5 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+                  {t('pay')}
+                </>
+              )}
+            </Button>
+          </div>
+        </Card>
+      </div>
+
+      <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title={t('addCustomer')}>
+        <form onSubmit={handleAddCustomer} className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('name')}</label>
+            <Input name="name" required />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('phone')}</label>
+            <Input name="phone" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('email')}</label>
+            <Input name="email" type="email" />
+          </div>
+          <Button type="submit" className="w-full">{t('save')}</Button>
+        </form>
+      </Modal>
+
+      <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title={t('printInvoice')}>
+        <div className="space-y-6">
+          <div id="printable-invoice" className="bg-white p-6 border rounded-xl text-slate-900">
+            <div className="text-center mb-6">
+              <h2 className="text-xl font-bold">{settings?.companyName || t('companyName')}</h2>
+              <p className="text-xs text-slate-500">{settings?.invoiceHeader}</p>
+            </div>
+            <div className="flex justify-between text-xs mb-4 border-b pb-2">
+              <div>
+                <p className="font-bold">{t('invoiceNumber')}: {lastSale?.invoiceNumber}</p>
+                <p>{t('date')}: {lastSale && new Date(lastSale.date).toLocaleString()}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold">{t('customer')}: {customers.find(c => c.id === lastSale?.customerId)?.name || t('walkIn')}</p>
+                <p>{t('paymentMethod')}: {lastSale && t(lastSale.paymentMethod)}</p>
+              </div>
+            </div>
+            <table className="w-full text-xs mb-4">
+              <thead>
+                <tr className="border-b">
+                  <th className="text-right py-1">{t('product')}</th>
+                  <th className="text-center py-1">{t('quantity')}</th>
+                  <th className="text-left py-1">{t('total')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lastSale?.items.map((item, i) => (
+                  <tr key={i} className="border-b border-slate-50">
+                    <td className="py-1">{products.find(p => p.id === item.productId)?.name}</td>
+                    <td className="text-center py-1">{item.quantity}</td>
+                    <td className="text-left py-1">{(item.price * item.quantity).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="flex justify-between font-bold text-sm">
+              <span>{t('totalAmount')}</span>
+              <span>{lastSale?.total.toLocaleString()} {t('egp')}</span>
+            </div>
+            <div className="text-center mt-6 pt-4 border-t text-[10px] text-slate-400 italic">
+              {settings?.invoiceFooter}
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <Button variant="outline" className="flex-1" onClick={() => setIsPrintModalOpen(false)}>{t('close')}</Button>
+            <Button className="flex-1" onClick={handlePrint}>
+              <Printer className={cn("w-4 h-4", dir === 'rtl' ? 'ml-2' : 'mr-2')} />
+              {t('print')}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
@@ -417,6 +905,7 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
       stock: Number(formData.get('stock')),
       unit: formData.get('unit') as string,
       warehouseId: formData.get('warehouseId') as string,
+      barcode: formData.get('barcode') as string,
     };
 
     if (data.unit === t('carton') || data.unit === t('box')) {
@@ -475,6 +964,7 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
             <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900/50 dark:border-slate-700">
               <tr>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('product')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('barcode')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('sku')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('category')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('warehouse')}</th>
@@ -488,6 +978,7 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
               {filteredProducts.map((product) => (
                 <tr key={product.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50">
                   <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{product.name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.barcode || '-'}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.sku}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.category}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
@@ -615,6 +1106,10 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
               </div>
             </div>
           )}
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('barcode')}</label>
+            <Input name="barcode" defaultValue={editingProduct?.barcode} />
+          </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('currentStock')}</label>
             <Input name="stock" type="number" defaultValue={editingProduct?.stock} required />
@@ -1680,22 +2175,35 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
   );
 };
 
-const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+const AccountingModule = ({ transactions, sales, purchases, canDo }: { transactions: Transaction[], sales: Sale[], purchases: Purchase[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('');
+  const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
+  const [attachment, setAttachment] = useState<string | null>(null);
 
   const filteredTransactions = useMemo(() => {
-    return transactions.filter(t => {
-      const matchesSearch = t.description.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                           t.category.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesType = typeFilter === 'all' || t.type === typeFilter;
-      const matchesDate = !dateFilter || t.date.startsWith(dateFilter);
+    return transactions.filter(trans => {
+      const matchesSearch = trans.description.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          trans.category.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesType = typeFilter === 'all' || trans.type === typeFilter;
+      const matchesDate = !dateFilter || trans.date.startsWith(dateFilter);
       return matchesSearch && matchesType && matchesDate;
     });
   }, [transactions, searchQuery, typeFilter, dateFilter]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAttachment(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -1706,15 +2214,26 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
       type: formData.get('type') as 'income' | 'expense',
       amount: Number(formData.get('amount')),
       category: formData.get('category') as string,
+      attachmentUrl: attachment || undefined
     };
 
     try {
       await addDoc(collection(db, 'transactions'), data);
       setIsModalOpen(false);
+      setAttachment(null);
     } catch (err) {
       handleFirestoreError(err, OperationType.WRITE, 'transactions');
     }
   };
+
+  const relatedInvoice = useMemo(() => {
+    if (!selectedTransaction?.referenceId) return null;
+    if (selectedTransaction.type === 'income') {
+      return sales.find(s => s.id === selectedTransaction.referenceId);
+    } else {
+      return purchases.find(p => p.id === selectedTransaction.referenceId);
+    }
+  }, [selectedTransaction, sales, purchases]);
 
   return (
     <div className="space-y-6" dir={dir}>
@@ -1763,6 +2282,7 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('description')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('category')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('amount')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -1778,6 +2298,12 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
                     trans.type === 'income' ? 'text-emerald-600' : 'text-red-600'
                   )}>
                     {trans.type === 'income' ? '+' : '-'}{trans.amount.toLocaleString()} {t('egp')}
+                  </td>
+                  <td className="px-6 py-4 text-sm">
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedTransaction(trans)}>
+                      <Eye className="w-4 h-4 ml-1" />
+                      {t('viewDetails')}
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -1809,10 +2335,89 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('category')}</label>
             <Input name="category" placeholder={t('categoryPlaceholder')} />
           </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('attachment')}</label>
+            <Input type="file" onChange={handleFileChange} className="text-xs" />
+          </div>
           <div className="pt-4">
             <Button type="submit" className="w-full">{t('saveEntry')}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={!!selectedTransaction} onClose={() => setSelectedTransaction(null)} title={t('transactionDetails')}>
+        {selectedTransaction && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-slate-500">{t('date')}</p>
+                <p className="text-sm font-medium">{format(new Date(selectedTransaction.date), 'yyyy/MM/dd HH:mm')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">{t('type')}</p>
+                <p className={cn("text-sm font-bold", selectedTransaction.type === 'income' ? 'text-emerald-600' : 'text-red-600')}>
+                  {selectedTransaction.type === 'income' ? t('income') : t('expense')}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">{t('amount')}</p>
+                <p className="text-sm font-bold">{selectedTransaction.amount.toLocaleString()} {t('egp')}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-500">{t('category')}</p>
+                <p className="text-sm font-medium">{selectedTransaction.category}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-slate-500">{t('description')}</p>
+              <p className="text-sm font-medium">{selectedTransaction.description}</p>
+            </div>
+
+            {relatedInvoice && (
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 dark:bg-slate-900/50 dark:border-slate-800">
+                <h4 className="text-sm font-bold mb-2">{t('relatedInvoice')}</h4>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-xs text-slate-500">{t('invoiceNumber')}</p>
+                    <p className="text-sm font-medium">{(relatedInvoice as any).invoiceNumber || relatedInvoice.id?.slice(0, 8)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-500">{t('total')}</p>
+                    <p className="text-sm font-bold">{relatedInvoice.total.toLocaleString()} {t('egp')}</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    // This is a bit tricky since we don't have a direct way to open the invoice modal from here easily without lifting state
+                    // But we can at least show the info
+                  }}>
+                    <FileText className="w-4 h-4 ml-1" />
+                    {t('viewInvoice')}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {selectedTransaction.attachmentUrl && (
+              <div>
+                <p className="text-xs text-slate-500 mb-2">{t('attachment')}</p>
+                <div className="border rounded-lg overflow-hidden">
+                  {selectedTransaction.attachmentUrl.startsWith('data:image') ? (
+                    <img src={selectedTransaction.attachmentUrl} alt="Attachment" className="max-w-full h-auto" referrerPolicy="no-referrer" />
+                  ) : (
+                    <div className="p-4 flex items-center justify-between bg-slate-50 dark:bg-slate-900">
+                      <div className="flex items-center gap-2">
+                        <Paperclip className="w-4 h-4 text-slate-400" />
+                        <span className="text-sm">{t('fileAttachment')}</span>
+                      </div>
+                      <a href={selectedTransaction.attachmentUrl} download="attachment" className="text-indigo-600 text-sm hover:underline">
+                        {t('download')}
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );
@@ -2091,18 +2696,23 @@ const StocktakingModule = ({ products, warehouses, canDo }: { products: Product[
   );
 };
 
-const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+const CustomersModule = ({ customers, sales, canDo }: { customers: Customer[], sales: Sale[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => 
       c.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       c.phone?.includes(searchQuery) ||
       c.email?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [customers, searchQuery]);
+    ).map(c => ({
+      ...c,
+      totalVolume: sales.filter(s => s.customerId === c.id).reduce((acc, s) => acc + s.total, 0),
+      salesCount: sales.filter(s => s.customerId === c.id).length
+    }));
+  }, [customers, searchQuery, sales]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -2152,6 +2762,7 @@ const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('name')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('email')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('phone')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('totalVolume')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
@@ -2161,8 +2772,12 @@ const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (
                   <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{c.name}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{c.email || '-'}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{c.phone || '-'}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400">{c.totalVolume.toLocaleString()} {t('egp')}</td>
                   <td className="px-6 py-4 text-sm">
-                    <button className="text-indigo-600 hover:text-indigo-900 font-medium dark:text-indigo-400 dark:hover:text-indigo-300">{t('viewDetails')}</button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedCustomer(c)}>
+                      <Eye className="w-4 h-4 ml-1" />
+                      {t('viewDetails')}
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -2190,22 +2805,68 @@ const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (
           </div>
         </form>
       </Modal>
+
+      <Modal isOpen={!!selectedCustomer} onClose={() => setSelectedCustomer(null)} title={t('customerDetails')}>
+        {selectedCustomer && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl dark:bg-slate-900/50">
+              <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 text-2xl font-bold dark:bg-indigo-900/30 dark:text-indigo-400">
+                {selectedCustomer.name.charAt(0)}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedCustomer.name}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{selectedCustomer.phone}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <Card className="p-4 bg-indigo-50/30 border-indigo-100 dark:bg-indigo-900/10 dark:border-indigo-900/30">
+                <p className="text-xs text-slate-500 mb-1">{t('totalVolume')}</p>
+                <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{(selectedCustomer as any).totalVolume.toLocaleString()} {t('egp')}</p>
+              </Card>
+              <Card className="p-4 bg-emerald-50/30 border-emerald-100 dark:bg-emerald-900/10 dark:border-emerald-900/30">
+                <p className="text-xs text-slate-500 mb-1">{t('salesCount')}</p>
+                <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{(selectedCustomer as any).salesCount}</p>
+              </Card>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-bold">{t('customerInfo')}</p>
+              <div className="grid grid-cols-1 gap-2 text-sm">
+                <div className="flex justify-between py-2 border-b dark:border-slate-800">
+                  <span className="text-slate-500">{t('email')}</span>
+                  <span className="font-medium">{selectedCustomer.email || '-'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b dark:border-slate-800">
+                  <span className="text-slate-500">{t('address')}</span>
+                  <span className="font-medium">{(selectedCustomer as any).address || '-'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
 
-const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+const SuppliersModule = ({ suppliers, purchases, canDo }: { suppliers: Supplier[], purchases: Purchase[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
   const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
 
   const filteredSuppliers = useMemo(() => {
     return suppliers.filter(s => 
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
       s.companyName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.phone?.includes(searchQuery)
-    );
-  }, [suppliers, searchQuery]);
+    ).map(s => ({
+      ...s,
+      totalVolume: purchases.filter(p => p.supplierId === s.id).reduce((acc, p) => acc + p.total, 0),
+      purchasesCount: purchases.filter(p => p.supplierId === s.id).length
+    }));
+  }, [suppliers, searchQuery, purchases]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -2230,7 +2891,7 @@ const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (
   return (
     <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('supplierManagement')}</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('suppliersManagement')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
             <Search className={`absolute ${dir === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
@@ -2258,7 +2919,7 @@ const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('name')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('company')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('email')}</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('phone')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('totalVolume')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
@@ -2268,9 +2929,12 @@ const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (
                   <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{s.name}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.companyName || '-'}</td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.email || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.phone || '-'}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-red-600 dark:text-red-400">{s.totalVolume.toLocaleString()} {t('egp')}</td>
                   <td className="px-6 py-4 text-sm">
-                    <button className="text-indigo-600 hover:text-indigo-900 font-medium dark:text-indigo-400 dark:hover:text-indigo-300">{t('viewDetails')}</button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedSupplier(s)}>
+                      <Eye className="w-4 h-4 ml-1" />
+                      {t('viewDetails')}
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -2313,6 +2977,55 @@ const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (
             <Button type="submit" className="w-full">{t('save')}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={!!selectedSupplier} onClose={() => setSelectedSupplier(null)} title={t('supplierDetails')}>
+        {selectedSupplier && (
+          <div className="space-y-6">
+            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl dark:bg-slate-900/50">
+              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center text-red-600 text-2xl font-bold dark:bg-red-900/30 dark:text-red-400">
+                {selectedSupplier.name.charAt(0)}
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-slate-900 dark:text-white">{selectedSupplier.name}</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">{selectedSupplier.companyName}</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <Card className="p-4 bg-red-50/30 border-red-100 dark:bg-red-900/10 dark:border-red-900/30">
+                <p className="text-xs text-slate-500 mb-1">{t('totalVolume')}</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400">{(selectedSupplier as any).totalVolume.toLocaleString()} {t('egp')}</p>
+              </Card>
+              <Card className="p-4 bg-amber-50/30 border-amber-100 dark:bg-amber-900/10 dark:border-amber-900/30">
+                <p className="text-xs text-slate-500 mb-1">{t('purchasesCount')}</p>
+                <p className="text-lg font-bold text-amber-600 dark:text-amber-400">{(selectedSupplier as any).purchasesCount}</p>
+              </Card>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-bold">{t('supplierInfo')}</p>
+              <div className="grid grid-cols-1 gap-2 text-sm">
+                <div className="flex justify-between py-2 border-b dark:border-slate-800">
+                  <span className="text-slate-500">{t('email')}</span>
+                  <span className="font-medium">{selectedSupplier.email || '-'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b dark:border-slate-800">
+                  <span className="text-slate-500">{t('phone')}</span>
+                  <span className="font-medium">{selectedSupplier.phone || '-'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b dark:border-slate-800">
+                  <span className="text-slate-500">{t('taxId')}</span>
+                  <span className="font-medium">{selectedSupplier.taxId || '-'}</span>
+                </div>
+                <div className="flex justify-between py-2 border-b dark:border-slate-800">
+                  <span className="text-slate-500">{t('address')}</span>
+                  <span className="font-medium">{selectedSupplier.address || '-'}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
@@ -2357,7 +3070,7 @@ const CategoriesModule = ({ categories, canDo }: { categories: Category[], canDo
   return (
     <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('categoryManagement')}</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('categoriesManagement')}</h2>
         <Button onClick={() => { setEditingCategory(null); setIsModalOpen(true); }}>
           <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
           {t('addNewCategory')}
@@ -2406,6 +3119,7 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
 
   const availableScreens = [
     { id: 'dashboard', label: t('dashboard') },
+    { id: 'cashier', label: t('cashier') },
     { id: 'inventory', label: t('inventory') },
     { id: 'warehouses', label: t('warehouses') },
     { id: 'stocktaking', label: t('stocktaking') },
@@ -2934,6 +3648,7 @@ export default function App() {
   const navItems = useMemo(() => {
     return [
       { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard },
+      { id: 'cashier', label: t('cashier'), icon: CreditCard },
       { id: 'inventory', label: t('inventory'), icon: Package },
       { id: 'warehouses', label: t('warehouses'), icon: MapPin },
       { id: 'stocktaking', label: t('stocktaking'), icon: CheckCircle2 },
@@ -3133,15 +3848,16 @@ export default function App() {
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.2 }}
             >
-              {activeTab === 'dashboard' && <Dashboard products={products} sales={sales} purchases={purchases} transactions={transactions} />}
+              {activeTab === 'dashboard' && <Dashboard products={products} sales={sales} purchases={purchases} transactions={transactions} customers={customers} suppliers={suppliers} onNavigate={setActiveTab} />}
+              {activeTab === 'cashier' && <CashierModule products={products} customers={customers} sales={sales} settings={settings} canDo={canDo} />}
               {activeTab === 'inventory' && <InventoryModule products={products} warehouses={warehouses} categories={categories} canDo={canDo} />}
               {activeTab === 'warehouses' && <WarehousesModule warehouses={warehouses} products={products} canDo={canDo} />}
               {activeTab === 'stocktaking' && <StocktakingModule products={products} warehouses={warehouses} canDo={canDo} />}
               {activeTab === 'purchases' && <PurchasesModule purchases={purchases} suppliers={suppliers} products={products} warehouses={warehouses} canDo={canDo} />}
               {activeTab === 'sales' && <SalesModule sales={sales} customers={customers} products={products} settings={settings} canDo={canDo} />}
-              {activeTab === 'accounting' && <AccountingModule transactions={transactions} canDo={canDo} />}
-              {activeTab === 'customers' && <CustomersModule customers={customers} canDo={canDo} />}
-              {activeTab === 'suppliers' && <SuppliersModule suppliers={suppliers} canDo={canDo} />}
+              {activeTab === 'accounting' && <AccountingModule transactions={transactions} sales={sales} purchases={purchases} canDo={canDo} />}
+              {activeTab === 'customers' && <CustomersModule customers={customers} sales={sales} canDo={canDo} />}
+              {activeTab === 'suppliers' && <SuppliersModule suppliers={suppliers} purchases={purchases} canDo={canDo} />}
               {activeTab === 'categories' && <CategoriesModule categories={categories} canDo={canDo} />}
               {activeTab === 'settings' && <SettingsModule settings={settings} users={users} />}
             </motion.div>

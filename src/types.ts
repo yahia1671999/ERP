@@ -8,6 +8,7 @@ export interface Product {
   stock: number;
   unit: string;
   warehouseId: string;
+  barcode?: string;
   piecesPerCarton?: number;
   cartonPrice?: number;
   cartonCost?: number;
@@ -66,12 +67,14 @@ export interface SaleItem {
 
 export interface Sale {
   id?: string;
+  invoiceNumber: string;
   customerId: string;
   date: string;
   items: SaleItem[];
   total: number;
   discount?: number;
   tax?: number;
+  paymentMethod: 'cash' | 'card' | 'other';
 }
 
 export interface Transaction {
@@ -81,6 +84,8 @@ export interface Transaction {
   type: 'income' | 'expense';
   amount: number;
   category: string;
+  referenceId?: string;
+  attachmentUrl?: string;
 }
 
 export interface Category {
