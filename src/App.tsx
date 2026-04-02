@@ -59,7 +59,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { ar, enUS } from 'date-fns/locale';
 import { 
   BarChart, 
   Bar, 
@@ -78,6 +78,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import { auth, db, storage, handleFirestoreError, OperationType } from './firebase';
+import { useTranslation, LanguageContext } from './i18n';
 import { 
   Product, 
   Warehouse,
@@ -98,11 +99,20 @@ function cn(...inputs: ClassValue[]) {
 }
 
 // --- Constants ---
-const UNITS = ['قطعة', 'كجم', 'لتر', 'متر', 'صندوق', 'كيس', 'كرتونة'];
+const getUnits = (t: (s: string) => string) => [
+  t('piece'), 
+  t('kg'), 
+  t('liter'), 
+  t('meter'), 
+  t('box'), 
+  t('bag'), 
+  t('carton')
+];
 
 // --- Components ---
 
 class ErrorBoundary extends React.Component<any, any> {
+  static contextType = LanguageContext;
   constructor(props: any) {
     super(props);
     (this as any).state = { hasError: false, error: null };
@@ -113,25 +123,26 @@ class ErrorBoundary extends React.Component<any, any> {
   }
 
   render() {
+    const { t, dir } = ((this as any).context as any) || { t: (k: string) => k, dir: 'rtl' };
     if ((this as any).state.hasError) {
-      let message = "حدث خطأ ما. يرجى المحاولة مرة أخرى.";
+      let message = t('somethingWentWrong');
       try {
         const errInfo = JSON.parse((this as any).state.error?.message || "{}");
         if (errInfo.error && errInfo.error.includes("permission-denied")) {
-          message = "ليس لديك الصلاحيات الكافية للقيام بهذه العملية أو الوصول لهذه البيانات.";
+          message = t('permissionDenied');
         }
       } catch (e) {
         // Not JSON
       }
 
       return (
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 text-center" dir="rtl">
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 text-center dark:bg-slate-900" dir={dir}>
           <Card className="p-8 max-w-md w-full">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-slate-900 mb-2">عذراً، حدث خطأ</h2>
-            <p className="text-slate-600 mb-6">{message}</p>
+            <h2 className="text-xl font-bold text-slate-900 mb-2 dark:text-white">{t('errorOccurred')}</h2>
+            <p className="text-slate-600 mb-6 dark:text-slate-400">{message}</p>
             <Button onClick={() => window.location.reload()} className="w-full">
-              إعادة تحميل الصفحة
+              {t('reloadPage')}
             </Button>
           </Card>
         </div>
@@ -228,6 +239,7 @@ const Dashboard = ({
   purchases: Purchase[], 
   transactions: Transaction[] 
 }) => {
+  const { t, dir, language } = useTranslation();
   const totalSales = useMemo(() => sales.reduce((acc, s) => acc + s.total, 0), [sales]);
   const totalPurchases = useMemo(() => purchases.reduce((acc, p) => acc + p.total, 0), [purchases]);
   const totalStockValue = useMemo(() => products.reduce((acc, p) => acc + (p.stock * p.cost), 0), [products]);
@@ -245,12 +257,12 @@ const Dashboard = ({
     });
 
     return last7Days.map(date => ({
-      date: format(new Date(date), 'EEE', { locale: ar }),
+      date: format(new Date(date), 'EEE', { locale: language === 'ar' ? ar : enUS }),
       amount: sales
         .filter(s => s.date.startsWith(date))
         .reduce((acc, s) => acc + s.total, 0)
     }));
-  }, [sales]);
+  }, [sales, language]);
 
   const stockData = useMemo(() => {
     return products
@@ -260,48 +272,48 @@ const Dashboard = ({
   }, [products]);
 
   return (
-    <div className="space-y-8" dir="rtl">
+    <div className="space-y-8" dir={dir}>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">إجمالي المبيعات</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-1">{totalSales.toLocaleString()} ج.م</h3>
+            <div className={language === 'ar' ? 'text-right' : 'text-left'}>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('totalSales')}</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1 dark:text-white">{totalSales.toLocaleString()} {t('egp')}</h3>
             </div>
-            <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
+            <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400">
               <TrendingUp className="w-6 h-6" />
             </div>
           </div>
         </Card>
         <Card className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">إجمالي المشتريات</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-1">{totalPurchases.toLocaleString()} ج.م</h3>
+            <div className={language === 'ar' ? 'text-right' : 'text-left'}>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('totalPurchases')}</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1 dark:text-white">{totalPurchases.toLocaleString()} {t('egp')}</h3>
             </div>
-            <div className="p-3 bg-red-50 rounded-xl text-red-600">
+            <div className="p-3 bg-red-50 rounded-xl text-red-600 dark:bg-red-900/30 dark:text-red-400">
               <ShoppingCart className="w-6 h-6" />
             </div>
           </div>
         </Card>
         <Card className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">قيمة المخزون</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-1">{totalStockValue.toLocaleString()} ج.م</h3>
+            <div className={language === 'ar' ? 'text-right' : 'text-left'}>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('stockValue')}</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1 dark:text-white">{totalStockValue.toLocaleString()} {t('egp')}</h3>
             </div>
-            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600">
+            <div className="p-3 bg-emerald-50 rounded-xl text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
               <Package className="w-6 h-6" />
             </div>
           </div>
         </Card>
         <Card className="p-6">
           <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-slate-500">صافي الربح</p>
-              <h3 className="text-2xl font-bold text-slate-900 mt-1">{netProfit.toLocaleString()} ج.م</h3>
+            <div className={language === 'ar' ? 'text-right' : 'text-left'}>
+              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">{t('netProfit')}</p>
+              <h3 className="text-2xl font-bold text-slate-900 mt-1 dark:text-white">{netProfit.toLocaleString()} {t('egp')}</h3>
             </div>
-            <div className="p-3 bg-amber-50 rounded-xl text-amber-600">
+            <div className="p-3 bg-amber-50 rounded-xl text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
               <DollarSign className="w-6 h-6" />
             </div>
           </div>
@@ -310,13 +322,13 @@ const Dashboard = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <Card className="p-6">
-          <h4 className="text-base font-semibold text-slate-900 mb-6">المبيعات (آخر 7 أيام)</h4>
+          <h4 className={cn("text-base font-semibold text-slate-900 mb-6 dark:text-white", language === 'ar' ? 'text-right' : 'text-left')}>{t('salesLast7Days')}</h4>
           <div className="h-[300px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <BarChart data={salesData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                 <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
-                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} orientation={language === 'ar' ? 'right' : 'left'} />
                 <Tooltip 
                   cursor={{ fill: '#f8fafc' }}
                   contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
@@ -328,7 +340,7 @@ const Dashboard = ({
         </Card>
 
         <Card className="p-6">
-          <h4 className="text-base font-semibold text-slate-900 mb-6">أعلى المنتجات في المخزن</h4>
+          <h4 className={cn("text-base font-semibold text-slate-900 mb-6 dark:text-white", language === 'ar' ? 'text-right' : 'text-left')}>{t('topProductsInStock')}</h4>
           <div className="h-[300px] w-full min-w-0">
             <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
               <PieChart>
@@ -356,11 +368,13 @@ const Dashboard = ({
 };
 
 const InventoryModule = ({ products, warehouses, categories, canDo }: { products: Product[], warehouses: Warehouse[], categories: Category[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedUnit, setSelectedUnit] = useState<string>('');
+  const UNITS = getUnits(t);
 
   useEffect(() => {
     if (editingProduct) {
@@ -384,12 +398,12 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
     const formData = new FormData(e.currentTarget);
     if (editingProduct) {
       if (!canDo('inventory', 'canEdit')) {
-        alert('ليس لديك صلاحية التعديل');
+        alert(t('permissionDenied'));
         return;
       }
     } else {
       if (!canDo('inventory', 'canAdd')) {
-        alert('ليس لديك صلاحية الإضافة');
+        alert(t('permissionDenied'));
         return;
       }
     }
@@ -405,7 +419,7 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
       warehouseId: formData.get('warehouseId') as string,
     };
 
-    if (data.unit === 'كرتونة' || data.unit === 'صندوق') {
+    if (data.unit === t('carton') || data.unit === t('box')) {
       data.piecesPerCarton = Number(formData.get('piecesPerCarton'));
       data.cartonPrice = Number(formData.get('cartonPrice'));
       data.cartonCost = Number(formData.get('cartonCost'));
@@ -425,31 +439,31 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">المخازن والمنتجات</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('inventory')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400", language === 'ar' ? 'right-3' : 'left-3')} />
             <Input 
-              placeholder="بحث عن منتج..." 
-              className="pr-10 w-64"
+              placeholder={t('searchProduct')} 
+              className={cn("w-64", language === 'ar' ? 'pr-10' : 'pl-10')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <select 
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
           >
-            <option value="all">كل التصنيفات</option>
+            <option value="all">{t('allCategories')}</option>
             {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
           {canDo('inventory', 'canAdd') && (
             <Button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}>
-              <Plus className="w-4 h-4 ml-2" />
-              إضافة منتج
+              <Plus className={cn("w-4 h-4", language === 'ar' ? 'ml-2' : 'mr-2')} />
+              {t('addProduct')}
             </Button>
           )}
         </div>
@@ -457,34 +471,34 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
-            <thead className="bg-slate-50 border-b border-slate-200">
+          <table className={cn("w-full", language === 'ar' ? 'text-right' : 'text-left')}>
+            <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900/50 dark:border-slate-700">
               <tr>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">المنتج</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">SKU</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">التصنيف</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">المخزن</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">سعر البيع</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">التكلفة</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">المخزون</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">إجراءات</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('product')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('sku')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('category')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('warehouse')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('sellingPrice')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('cost')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('stock')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filteredProducts.map((product) => (
-                <tr key={product.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{product.name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{product.sku}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{product.category}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {warehouses.find(w => w.id === product.warehouseId)?.name || 'غير محدد'}
+                <tr key={product.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{product.name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.sku}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.category}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                    {warehouses.find(w => w.id === product.warehouseId)?.name || t('notSpecified')}
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-900">{product.price.toLocaleString()} ج.م</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{product.cost.toLocaleString()} ج.م</td>
+                  <td className="px-6 py-4 text-sm text-slate-900 dark:text-white">{product.price.toLocaleString()} {t('egp')}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.cost.toLocaleString()} {t('egp')}</td>
                   <td className="px-6 py-4">
                     <span className={cn(
                       'px-2.5 py-1 rounded-full text-xs font-medium',
-                      product.stock < 10 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                      product.stock < 10 ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
                     )}>
                       {product.stock} {product.unit}
                     </span>
@@ -493,12 +507,12 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
                     <div className="flex items-center gap-2">
                       {canDo('inventory', 'canEdit') && (
                         <Button variant="ghost" size="sm" onClick={() => { setEditingProduct(product); setIsModalOpen(true); }}>
-                          تعديل
+                          {t('edit')}
                         </Button>
                       )}
                       {canDo('inventory', 'canDelete') && (
                         <Button variant="danger" size="sm" onClick={async () => {
-                          if (window.confirm('هل أنت متأكد من حذف هذا المنتج؟')) {
+                          if (window.confirm(t('confirmDeleteProduct'))) {
                             try {
                               await deleteDoc(doc(db, 'products', product.id!));
                             } catch (err) {
@@ -506,7 +520,7 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
                             }
                           }
                         }}>
-                          حذف
+                          {t('delete')}
                         </Button>
                       )}
                     </div>
@@ -521,92 +535,92 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
       <Modal 
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        title={editingProduct ? 'تعديل منتج' : 'إضافة منتج جديد'}
+        title={editingProduct ? t('editProduct') : t('addNewProduct')}
       >
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">اسم المنتج</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('productName')}</label>
             <Input name="name" defaultValue={editingProduct?.name} required />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">SKU</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('sku')}</label>
               <Input name="sku" defaultValue={editingProduct?.sku} required />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">التصنيف</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('category')}</label>
               <select 
                 name="category" 
-                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                 defaultValue={editingProduct?.category}
                 required
               >
-                <option value="">اختر التصنيف</option>
+                <option value="">{t('selectCategory')}</option>
                 {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">سعر البيع</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('sellingPrice')}</label>
               <Input name="price" type="number" defaultValue={editingProduct?.price} required />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">التكلفة</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('cost')}</label>
               <Input name="cost" type="number" defaultValue={editingProduct?.cost} required />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">المخزن</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('warehouse')}</label>
               <select 
                 name="warehouseId" 
-                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                 defaultValue={editingProduct?.warehouseId}
                 required
               >
-                <option value="">اختر المخزن</option>
+                <option value="">{t('selectWarehouse')}</option>
                 {warehouses.map(w => (
                   <option key={w.id} value={w.id}>{w.name}</option>
                 ))}
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">الوحدة</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('unit')}</label>
               <select 
                 name="unit" 
-                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                 value={selectedUnit}
                 onChange={(e) => setSelectedUnit(e.target.value)}
                 required
               >
-                <option value="">اختر الوحدة</option>
+                <option value="">{t('selectUnit')}</option>
                 {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
           </div>
-          {(selectedUnit === 'كرتونة' || selectedUnit === 'صندوق') && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200">
+          {(selectedUnit === t('carton') || selectedUnit === t('box')) && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-200 dark:bg-slate-900/50 dark:border-slate-700">
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">عدد القطع</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('piecesCount')}</label>
                 <Input name="piecesPerCarton" type="number" defaultValue={editingProduct?.piecesPerCarton} required />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">سعر الكرتونة</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('cartonPrice')}</label>
                 <Input name="cartonPrice" type="number" defaultValue={editingProduct?.cartonPrice} required />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">تكلفة الكرتونة</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('cartonCost')}</label>
                 <Input name="cartonCost" type="number" defaultValue={editingProduct?.cartonCost} required />
               </div>
             </div>
           )}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">المخزون الحالي</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('currentStock')}</label>
             <Input name="stock" type="number" defaultValue={editingProduct?.stock} required />
           </div>
           <div className="pt-4">
-            <Button type="submit" className="w-full">حفظ المنتج</Button>
+            <Button type="submit" className="w-full">{t('saveProduct')}</Button>
           </div>
         </form>
       </Modal>
@@ -615,6 +629,7 @@ const InventoryModule = ({ products, warehouses, categories, canDo }: { products
 };
 
 const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: { purchases: Purchase[], suppliers: Supplier[], products: Product[], warehouses: Warehouse[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState('');
@@ -660,7 +675,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
     const product = products.find(p => p.id === newItems[index].productId);
     if (product) {
       if (field === 'productId') {
-        const isCarton = product.unit === 'كرتونة' || product.unit === 'صندوق';
+        const isCarton = product.unit === t('carton') || product.unit === t('box');
         newItems[index].unitType = isCarton ? 'carton' : 'piece';
         newItems[index].cost = isCarton ? (product.cartonCost || product.cost) : product.cost;
         newItems[index].sellingPrice = isCarton ? (product.cartonPrice || product.price) : product.price;
@@ -704,7 +719,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
         setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
       } catch (error) {
         console.error("Error opening base64 invoice:", error);
-        alert("حدث خطأ أثناء فتح الفاتورة.");
+        alert(t('errorOpeningInvoice'));
       }
     } else {
       window.open(url, '_blank');
@@ -719,7 +734,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
     try {
       if (invoiceFile) {
         if (invoiceFile.size > 500 * 1024) {
-          alert("حجم الملف كبير جداً. يرجى اختيار ملف بحجم أقل من 500 كيلوبايت لتتمكن من حفظه.");
+          alert(t('fileTooLarge'));
           setIsUploading(false);
           return;
         }
@@ -733,7 +748,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
           invoiceUrl = await base64Promise;
         } catch (uploadError) {
           console.error("File read failed:", uploadError);
-          alert("فشل قراءة الملف المرفق. سيتم حفظ الفاتورة بدون المرفق.");
+          alert(t('fileReadFailed'));
         }
       }
 
@@ -769,7 +784,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
           warehouseId: item.warehouseId,
         };
         
-        if (product && (product.unit === 'كرتونة' || product.unit === 'صندوق')) {
+        if (product && (product.unit === t('carton') || product.unit === t('box'))) {
           if (item.unitType === 'piece') {
             stockAddition = item.quantity / (product.piecesPerCarton || 1);
             updateData.cost = item.cost;
@@ -792,10 +807,10 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
       const transRef = doc(collection(db, 'transactions'));
       batch.set(transRef, {
         date: new Date().toISOString(),
-        description: `شراء بضاعة من ${suppliers.find(s => s.id === selectedSupplier)?.name}`,
+        description: `${t('purchaseFrom')} ${suppliers.find(s => s.id === selectedSupplier)?.name}`,
         type: 'expense',
         amount: grandTotal,
-        category: 'مشتريات'
+        category: t('purchases')
       });
 
       await batch.commit();
@@ -833,15 +848,15 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">المشتريات</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('purchases')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className={`absolute ${dir === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
             <Input 
-              placeholder="بحث عن مورد..." 
-              className="pr-10 w-64"
+              placeholder={t('searchSupplier')} 
+              className={`${dir === 'rtl' ? 'pr-10' : 'pl-10'} w-64`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -853,51 +868,51 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
             onChange={(e) => setDateFilter(e.target.value)}
           />
           <Button onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4 ml-2" />
-            فاتورة شراء جديدة
+            <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+            {t('newPurchaseInvoice')}
           </Button>
         </div>
       </div>
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
-            <thead className="bg-slate-50 border-b border-slate-200">
+          <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
+            <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-800 dark:border-slate-700">
               <tr>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">التاريخ</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">المورد</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">عدد الأصناف</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الإجمالي</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الفاتورة</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">إجراءات</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('date')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('supplier')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('itemsCount')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('total')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('invoice')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredPurchases.map((purchase) => (
-                <tr key={purchase.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {format(new Date(purchase.date), 'yyyy/MM/dd HH:mm')}
+                <tr key={purchase.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50">
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                    {format(new Date(purchase.date), 'yyyy/MM/dd HH:mm', { locale: language === 'ar' ? undefined : enUS })}
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                    {suppliers.find(s => s.id === purchase.supplierId)?.name || 'مورد غير معروف'}
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">
+                    {suppliers.find(s => s.id === purchase.supplierId)?.name || t('unknownSupplier')}
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{purchase.items.length}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-slate-900">{purchase.total.toLocaleString()} ج.م</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{purchase.items.length}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{purchase.total.toLocaleString()} {t('egp')}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                     {purchase.invoiceUrl ? (
                       <button 
                         onClick={() => handleOpenInvoice(purchase.invoiceUrl)} 
-                        className="text-indigo-600 hover:underline cursor-pointer"
+                        className="text-indigo-600 hover:underline cursor-pointer dark:text-indigo-400"
                       >
-                        المرفق
+                        {t('attachment')}
                       </button>
                     ) : (
-                      <span className="text-slate-400">لا يوجد</span>
+                      <span className="text-slate-400">{t('none')}</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                     <Button variant="outline" size="sm" onClick={() => setPurchaseToView(purchase)}>
-                      عرض التفاصيل
+                      {t('viewDetails')}
                     </Button>
                   </td>
                 </tr>
@@ -907,37 +922,37 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
         </div>
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="فاتورة شراء جديدة" maxWidth="max-w-4xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('newPurchaseInvoice')} maxWidth="max-w-4xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-700">المورد</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('supplier')}</label>
               <button 
                 type="button" 
                 onClick={() => setIsSupplierModalOpen(true)}
-                className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                className="text-xs text-indigo-600 hover:text-indigo-800 flex items-center gap-1 dark:text-indigo-400 dark:hover:text-indigo-300"
               >
                 <Plus className="w-3 h-3" />
-                مورد جديد
+                {t('newSupplier')}
               </button>
             </div>
             <select 
-              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
               value={selectedSupplier}
               onChange={(e) => setSelectedSupplier(e.target.value)}
               required
             >
-              <option value="">اختر المورد</option>
+              <option value="">{t('selectSupplier')}</option>
               {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-900">الأصناف</h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{t('items')}</h4>
               <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                <Plus className="w-4 h-4 ml-1" />
-                إضافة صنف
+                <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-1' : 'mr-1'}`} />
+                {t('addItem')}
               </Button>
             </div>
             
@@ -946,38 +961,38 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
               const isCartonProduct = product && (product.unit === 'كرتونة' || product.unit === 'صندوق');
               
               return (
-              <div key={index} className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100 relative">
-                <button type="button" onClick={() => removeItem(index)} className="absolute top-2 left-2 text-red-500 hover:text-red-700 bg-white rounded-full p-1 shadow-sm">
+              <div key={index} className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-100 relative dark:bg-slate-900/50 dark:border-slate-800">
+                <button type="button" onClick={() => removeItem(index)} className={`absolute top-2 ${dir === 'rtl' ? 'left-2' : 'right-2'} text-red-500 hover:text-red-700 bg-white rounded-full p-1 shadow-sm dark:bg-slate-800`}>
                   <X className="w-4 h-4" />
                 </button>
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                   <div className="md:col-span-4 space-y-1">
-                    <label className="text-[10px] text-slate-500">المنتج</label>
+                    <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('product')}</label>
                     <select 
-                      className="w-full h-9 rounded border border-slate-200 text-xs"
+                      className="w-full h-9 rounded border border-slate-200 text-xs dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                       value={item.productId}
                       onChange={(e) => updateItem(index, 'productId', e.target.value)}
                       required
                     >
-                      <option value="">اختر المنتج</option>
+                      <option value="">{t('selectProduct')}</option>
                       {products.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
                   </div>
                   {isCartonProduct && (
                     <div className="md:col-span-2 space-y-1">
-                      <label className="text-[10px] text-slate-500">نوع الوحدة</label>
+                      <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('unitType')}</label>
                       <select 
-                        className="w-full h-9 rounded border border-slate-200 text-xs"
+                        className="w-full h-9 rounded border border-slate-200 text-xs dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                         value={item.unitType || 'carton'}
                         onChange={(e) => updateItem(index, 'unitType', e.target.value)}
                       >
-                        <option value="carton">كرتونة</option>
-                        <option value="piece">قطعة</option>
+                        <option value="carton">{t('carton')}</option>
+                        <option value="piece">{t('piece')}</option>
                       </select>
                     </div>
                   )}
                   <div className={isCartonProduct ? "md:col-span-3 space-y-1" : "md:col-span-4 space-y-1"}>
-                    <label className="text-[10px] text-slate-500">الكمية</label>
+                    <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('quantity')}</label>
                     <Input 
                       type="number" 
                       className="h-9 text-xs"
@@ -987,7 +1002,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
                     />
                   </div>
                   <div className={isCartonProduct ? "md:col-span-3 space-y-1" : "md:col-span-4 space-y-1"}>
-                    <label className="text-[10px] text-slate-500">التكلفة</label>
+                    <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('cost')}</label>
                     <Input 
                       type="number" 
                       className="h-9 text-xs"
@@ -1000,7 +1015,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
                   <div className="md:col-span-3 space-y-1">
-                    <label className="text-[10px] text-slate-500">خصم صنف (%)</label>
+                    <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('itemDiscountPercent')}</label>
                     <Input 
                       type="number" 
                       className="h-9 text-xs"
@@ -1009,7 +1024,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
                     />
                   </div>
                   <div className="md:col-span-4 space-y-1">
-                    <label className="text-[10px] text-slate-500">سعر البيع الجديد</label>
+                    <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('newSellingPrice')}</label>
                     <Input 
                       type="number" 
                       className="h-9 text-xs"
@@ -1018,13 +1033,13 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
                     />
                   </div>
                   <div className="md:col-span-5 space-y-1">
-                    <label className="text-[10px] text-slate-500">توجيه للمخزن</label>
+                    <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('directToWarehouse')}</label>
                     <select 
-                      className="w-full h-9 rounded border border-slate-200 text-xs"
+                      className="w-full h-9 rounded border border-slate-200 text-xs dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                       value={item.warehouseId}
                       onChange={(e) => updateItem(index, 'warehouseId', e.target.value)}
                     >
-                      <option value="">اختر المخزن</option>
+                      <option value="">{t('selectWarehouse')}</option>
                       {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
                     </select>
                   </div>
@@ -1033,21 +1048,21 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
             )})}
           </div>
 
-          <div className="pt-4 border-t border-slate-100 space-y-4">
+          <div className="pt-4 border-t border-slate-100 space-y-4 dark:border-slate-800">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <label className="text-xs text-slate-500">نوع خصم الفاتورة</label>
+                <label className="text-xs text-slate-500 dark:text-slate-400">{t('invoiceDiscountType')}</label>
                 <select 
-                  className="w-full h-9 rounded border border-slate-200 text-xs"
+                  className="w-full h-9 rounded border border-slate-200 text-xs dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                   value={discountType}
                   onChange={(e) => setDiscountType(e.target.value as any)}
                 >
-                  <option value="percentage">نسبة (%)</option>
-                  <option value="fixed">مبلغ ثابت</option>
+                  <option value="percentage">{t('percentage')}</option>
+                  <option value="fixed">{t('fixedAmount')}</option>
                 </select>
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-slate-500">قيمة الخصم</label>
+                <label className="text-xs text-slate-500 dark:text-slate-400">{t('discountValue')}</label>
                 <Input 
                   type="number" 
                   className="h-9 text-xs"
@@ -1058,13 +1073,13 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
             </div>
 
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">الإجمالي النهائي:</span>
-              <span className="text-xl font-bold text-indigo-600">
-                {calculateGrandTotal().toLocaleString()} ج.م
+              <span className="text-slate-600 dark:text-slate-400">{t('finalTotalLabel')}</span>
+              <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+                {calculateGrandTotal().toLocaleString()} {t('egp')}
               </span>
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-slate-500">رفع الفاتورة (اختياري)</label>
+              <label className="text-xs text-slate-500 dark:text-slate-400">{t('uploadInvoiceOptional')}</label>
               <Input 
                 type="file" 
                 className="h-9 text-xs"
@@ -1073,87 +1088,87 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
               />
             </div>
             <Button type="submit" className="w-full" disabled={items.length === 0 || isUploading}>
-              {isUploading ? 'جاري الحفظ...' : 'حفظ الفاتورة'}
+              {isUploading ? t('saving') : t('saveInvoice')}
             </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal isOpen={isSupplierModalOpen} onClose={() => setIsSupplierModalOpen(false)} title="إضافة مورد سريع">
+      <Modal isOpen={isSupplierModalOpen} onClose={() => setIsSupplierModalOpen(false)} title={t('quickAddSupplier')}>
         <form onSubmit={handleAddSupplier} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">الاسم</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('name')}</label>
               <Input name="name" required />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">اسم الشركة</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('companyName')}</label>
               <Input name="companyName" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">الرقم الضريبي</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('taxId')}</label>
               <Input name="taxId" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">رقم الهاتف</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('phone')}</label>
               <Input name="phone" />
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">البريد الإلكتروني</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('email')}</label>
             <Input name="email" type="email" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">العنوان</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('address')}</label>
             <Input name="address" />
           </div>
           <div className="pt-4">
-            <Button type="submit" className="w-full">حفظ المورد</Button>
+            <Button type="submit" className="w-full">{t('saveSupplier')}</Button>
           </div>
         </form>
       </Modal>
 
-      <Modal isOpen={!!purchaseToView} onClose={() => setPurchaseToView(null)} title="تفاصيل فاتورة الشراء">
+      <Modal isOpen={!!purchaseToView} onClose={() => setPurchaseToView(null)} title={t('purchaseInvoiceDetails')}>
         {purchaseToView && (
-          <div className="space-y-6" dir="rtl">
-            <div className="p-6 bg-slate-50 rounded-lg border border-slate-200">
+          <div className="space-y-6" dir={dir}>
+            <div className="p-6 bg-slate-50 rounded-lg border border-slate-200 dark:bg-slate-900/50 dark:border-slate-800">
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div>
-                  <p className="text-sm text-slate-500">المورد</p>
-                  <p className="font-semibold text-slate-900">{suppliers.find(s => s.id === purchaseToView.supplierId)?.name || 'مورد غير معروف'}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{t('supplier')}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">{suppliers.find(s => s.id === purchaseToView.supplierId)?.name || t('unknownSupplier')}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-slate-500">التاريخ</p>
-                  <p className="font-semibold text-slate-900">{format(new Date(purchaseToView.date), 'yyyy/MM/dd HH:mm')}</p>
+                  <p className="text-sm text-slate-500 dark:text-slate-400">{t('date')}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white">{format(new Date(purchaseToView.date), 'yyyy/MM/dd HH:mm', { locale: language === 'ar' ? undefined : enUS })}</p>
                 </div>
               </div>
               
-              <h4 className="font-semibold text-slate-900 mb-3">الأصناف</h4>
+              <h4 className="font-semibold text-slate-900 dark:text-white mb-3">{t('items')}</h4>
               <div className="overflow-x-auto">
-                <table className="w-full text-right text-sm">
-                  <thead className="bg-slate-100 text-slate-600">
+                <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'} text-sm`}>
+                  <thead className="bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                     <tr>
-                      <th className="py-2 px-3 rounded-r-lg">المنتج</th>
-                      <th className="py-2 px-3">الكمية</th>
-                      <th className="py-2 px-3">التكلفة</th>
-                      <th className="py-2 px-3">الخصم</th>
-                      <th className="py-2 px-3 rounded-l-lg">المجموع</th>
+                      <th className={`py-2 px-3 ${dir === 'rtl' ? 'rounded-r-lg' : 'rounded-l-lg'}`}>{t('product')}</th>
+                      <th className="py-2 px-3">{t('quantity')}</th>
+                      <th className="py-2 px-3">{t('cost')}</th>
+                      <th className="py-2 px-3">{t('discount')}</th>
+                      <th className={`py-2 px-3 ${dir === 'rtl' ? 'rounded-l-lg' : 'rounded-r-lg'}`}>{t('total')}</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                     {purchaseToView.items.map((item, idx) => {
                       const base = item.quantity * item.cost;
                       const discountVal = (base * (item.discount || 0)) / 100;
                       const itemTotal = base - discountVal;
                       return (
                         <tr key={idx}>
-                          <td className="py-2 px-3">{products.find(p => p.id === item.productId)?.name || 'منتج غير معروف'}</td>
-                          <td className="py-2 px-3">{item.quantity} {item.unitType === 'carton' ? 'كرتونة' : 'قطعة'}</td>
-                          <td className="py-2 px-3">{item.cost.toLocaleString()} ج.م</td>
-                          <td className="py-2 px-3">{item.discount || 0}%</td>
-                          <td className="py-2 px-3">{itemTotal.toLocaleString()} ج.م</td>
+                          <td className="py-2 px-3 text-slate-900 dark:text-white">{products.find(p => p.id === item.productId)?.name || t('unknownProduct')}</td>
+                          <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{item.quantity} {item.unitType === 'carton' ? t('carton') : t('piece')}</td>
+                          <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{item.cost.toLocaleString()} {t('egp')}</td>
+                          <td className="py-2 px-3 text-slate-600 dark:text-slate-400">{item.discount || 0}%</td>
+                          <td className="py-2 px-3 font-bold text-slate-900 dark:text-white">{itemTotal.toLocaleString()} {t('egp')}</td>
                         </tr>
                       );
                     })}
@@ -1161,21 +1176,21 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
                 </table>
               </div>
               
-              <div className="mt-6 space-y-2 border-t border-slate-200 pt-4">
+              <div className="mt-6 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
                 {purchaseToView.totalDiscount > 0 && (
-                  <div className="flex justify-between text-sm text-slate-600">
-                    <span>خصم الفاتورة:</span>
-                    <span>{purchaseToView.totalDiscount.toLocaleString()} {purchaseToView.discountType === 'percentage' ? '%' : 'ج.م'}</span>
+                  <div className="flex justify-between text-sm text-slate-600 dark:text-slate-400">
+                    <span>{t('invoiceDiscountLabel')}</span>
+                    <span>{purchaseToView.totalDiscount.toLocaleString()} {purchaseToView.discountType === 'percentage' ? '%' : t('egp')}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-lg text-slate-900">
-                  <span>الإجمالي النهائي:</span>
-                  <span>{purchaseToView.total.toLocaleString()} ج.م</span>
+                <div className="flex justify-between font-bold text-lg text-slate-900 dark:text-white">
+                  <span>{t('finalTotalLabel')}</span>
+                  <span>{purchaseToView.total.toLocaleString()} {t('egp')}</span>
                 </div>
               </div>
             </div>
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => setPurchaseToView(null)}>إغلاق</Button>
+            <div className={`flex ${dir === 'rtl' ? 'justify-end' : 'justify-start'}`}>
+              <Button variant="outline" onClick={() => setPurchaseToView(null)}>{t('close')}</Button>
             </div>
           </div>
         )}
@@ -1185,6 +1200,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo }: 
 };
 
 const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: Sale[], customers: Customer[], products: Product[], settings: SystemSettings, canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState('');
@@ -1266,7 +1282,7 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
       items.forEach(item => {
         const product = products.find(p => p.id === item.productId);
         let stockDeduction = item.quantity;
-        if (product && (product.unit === 'كرتونة' || product.unit === 'صندوق') && item.unitType === 'piece') {
+        if (product && (product.unit === t('carton') || product.unit === t('box')) && item.unitType === 'piece') {
           stockDeduction = item.quantity / (product.piecesPerCarton || 1);
         }
         
@@ -1277,10 +1293,10 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
       const transRef = doc(collection(db, 'transactions'));
       batch.set(transRef, {
         date: new Date().toISOString(),
-        description: `بيع بضاعة لـ ${customers.find(c => c.id === selectedCustomer)?.name}`,
+        description: `${t('saleTo')} ${customers.find(c => c.id === selectedCustomer)?.name}`,
         type: 'income',
         amount: total,
-        category: 'مبيعات'
+        category: t('sales')
       });
 
       await batch.commit();
@@ -1314,15 +1330,15 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">المبيعات</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('sales')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className={`absolute ${dir === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
             <Input 
-              placeholder="بحث عن عميل..." 
-              className="pr-10 w-64"
+              placeholder={t('searchCustomer')} 
+              className={`${dir === 'rtl' ? 'pr-10' : 'pl-10'} w-64`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -1334,38 +1350,38 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
             onChange={(e) => setDateFilter(e.target.value)}
           />
           <Button variant="secondary" onClick={() => setIsModalOpen(true)}>
-            <Plus className="w-4 h-4 ml-2" />
-            فاتورة بيع جديدة
+            <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+            {t('newSaleInvoice')}
           </Button>
         </div>
       </div>
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
-            <thead className="bg-slate-50 border-b border-slate-200">
+          <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
+            <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-800 dark:border-slate-700">
               <tr>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">التاريخ</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">العميل</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">عدد الأصناف</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الإجمالي</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">إجراءات</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('date')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('customer')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('itemsCount')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('total')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredSales.map((sale) => (
-                <tr key={sale.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-slate-600">
-                    {format(new Date(sale.date), 'yyyy/MM/dd HH:mm')}
+                <tr key={sale.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-800/50">
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                    {format(new Date(sale.date), 'yyyy/MM/dd HH:mm', { locale: language === 'ar' ? undefined : enUS })}
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">
-                    {customers.find(c => c.id === sale.customerId)?.name || 'عميل غير معروف'}
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">
+                    {customers.find(c => c.id === sale.customerId)?.name || t('unknownCustomer')}
                   </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{sale.items.length}</td>
-                  <td className="px-6 py-4 text-sm font-bold text-slate-900">{sale.total.toLocaleString()} ج.م</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{sale.items.length}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-slate-900 dark:text-white">{sale.total.toLocaleString()} {t('egp')}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                     <Button variant="outline" size="sm" onClick={() => setSaleToPrint(sale)}>
-                      عرض التفاصيل
+                      {t('viewDetails')}
                     </Button>
                   </td>
                 </tr>
@@ -1375,80 +1391,80 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
         </div>
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="فاتورة بيع جديدة" maxWidth="max-w-4xl">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('newSaleInvoice')} maxWidth="max-w-4xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium text-slate-700">العميل</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('customer')}</label>
               <button 
                 type="button" 
                 onClick={() => setIsCustomerModalOpen(true)}
-                className="text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1"
+                className="text-xs text-emerald-600 hover:text-emerald-800 flex items-center gap-1 dark:text-emerald-400 dark:hover:text-emerald-300"
               >
                 <Plus className="w-3 h-3" />
-                عميل جديد
+                {t('newCustomer')}
               </button>
             </div>
             <select 
-              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
               value={selectedCustomer}
               onChange={(e) => setSelectedCustomer(e.target.value)}
               required
             >
-              <option value="">اختر العميل</option>
+              <option value="">{t('selectCustomer')}</option>
               {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-900">الأصناف</h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white">{t('items')}</h4>
               <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                <Plus className="w-4 h-4 ml-1" />
-                إضافة صنف
+                <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-1' : 'mr-1'}`} />
+                {t('addItem')}
               </Button>
             </div>
             
             {items.map((item, index) => {
               const product = products.find(p => p.id === item.productId);
-              const isCartonProduct = product && (product.unit === 'كرتونة' || product.unit === 'صندوق');
+              const isCartonProduct = product && (product.unit === t('carton') || product.unit === t('box'));
               
               return (
-              <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end bg-slate-50 p-3 rounded-lg relative">
-                <button type="button" onClick={() => removeItem(index)} className="absolute top-2 left-2 text-red-500 hover:text-red-700 bg-white rounded-full p-1 shadow-sm md:hidden">
+              <div key={index} className="grid grid-cols-1 md:grid-cols-12 gap-2 items-end bg-slate-50 p-3 rounded-lg relative dark:bg-slate-900/50 dark:border-slate-800">
+                <button type="button" onClick={() => removeItem(index)} className={`absolute top-2 ${dir === 'rtl' ? 'left-2' : 'right-2'} text-red-500 hover:text-red-700 bg-white rounded-full p-1 shadow-sm md:hidden dark:bg-slate-800`}>
                   <X className="w-4 h-4" />
                 </button>
                 <div className="md:col-span-4 space-y-1">
-                  <label className="text-[10px] text-slate-500">المنتج</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('product')}</label>
                   <select 
-                    className="w-full h-9 rounded border border-slate-200 text-xs"
+                    className="w-full h-9 rounded border border-slate-200 text-xs dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                     value={item.productId}
                     onChange={(e) => updateItem(index, 'productId', e.target.value)}
                     required
                   >
-                    <option value="">اختر المنتج</option>
+                    <option value="">{t('selectProduct')}</option>
                     {products.map(p => (
                       <option key={p.id} value={p.id} disabled={p.stock <= 0}>
-                        {p.name} ({p.stock} متاح)
+                        {p.name} ({p.stock} {t('available')})
                       </option>
                     ))}
                   </select>
                 </div>
                 {isCartonProduct && (
                   <div className="md:col-span-2 space-y-1">
-                    <label className="text-[10px] text-slate-500">نوع الوحدة</label>
+                    <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('unitType')}</label>
                     <select 
-                      className="w-full h-9 rounded border border-slate-200 text-xs"
+                      className="w-full h-9 rounded border border-slate-200 text-xs dark:bg-slate-900 dark:border-slate-700 dark:text-white"
                       value={item.unitType || 'carton'}
                       onChange={(e) => updateItem(index, 'unitType', e.target.value)}
                     >
-                      <option value="carton">كرتونة</option>
-                      <option value="piece">قطعة</option>
+                      <option value="carton">{t('carton')}</option>
+                      <option value="piece">{t('piece')}</option>
                     </select>
                   </div>
                 )}
                 <div className={isCartonProduct ? "md:col-span-2 space-y-1" : "md:col-span-3 space-y-1"}>
-                  <label className="text-[10px] text-slate-500">الكمية</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('quantity')}</label>
                   <Input 
                     type="number" 
                     className="h-9 text-xs"
@@ -1459,7 +1475,7 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
                   />
                 </div>
                 <div className={isCartonProduct ? "md:col-span-3 space-y-1" : "md:col-span-4 space-y-1"}>
-                  <label className="text-[10px] text-slate-500">السعر</label>
+                  <label className="text-[10px] text-slate-500 dark:text-slate-400">{t('price')}</label>
                   <Input 
                     type="number" 
                     className="h-9 text-xs"
@@ -1477,46 +1493,46 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
             )})}
           </div>
 
-          <div className="pt-4 border-t border-slate-100 space-y-4">
+          <div className="pt-4 border-t border-slate-100 space-y-4 dark:border-slate-800">
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">المجموع الفرعي:</span>
-              <span className="text-lg font-medium text-slate-900">
-                {items.reduce((acc, item) => acc + (item.quantity * item.price), 0).toLocaleString()} ج.م
+              <span className="text-slate-600 dark:text-slate-400">{t('subtotal')}:</span>
+              <span className="text-lg font-medium text-slate-900 dark:text-white">
+                {items.reduce((acc, item) => acc + (item.quantity * item.price), 0).toLocaleString()} {t('egp')}
               </span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">الخصم (قيمة):</span>
+              <span className="text-slate-600 dark:text-slate-400">{t('discount')} ({t('fixedAmount')}):</span>
               <Input 
                 type="number" 
-                className="w-32 text-left" 
+                className={`w-32 ${dir === 'rtl' ? 'text-right' : 'text-left'}`} 
                 value={discount} 
                 onChange={(e) => setDiscount(Number(e.target.value))} 
                 min="0"
               />
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-slate-600">الضريبة (%):</span>
+              <span className="text-slate-600 dark:text-slate-400">{t('tax')} (%):</span>
               <Input 
                 type="number" 
-                className="w-32 text-left" 
+                className={`w-32 ${dir === 'rtl' ? 'text-right' : 'text-left'}`} 
                 value={taxRate} 
                 onChange={(e) => setTaxRate(Number(e.target.value))} 
                 min="0"
                 step="0.01"
               />
             </div>
-            <div className="flex justify-between items-center border-t border-slate-100 pt-4">
-              <span className="text-slate-600">الإجمالي النهائي:</span>
-              <span className="text-xl font-bold text-slate-900">
+            <div className="flex justify-between items-center border-t border-slate-100 pt-4 dark:border-slate-800">
+              <span className="text-slate-600 dark:text-slate-400">{t('finalTotalLabel')}</span>
+              <span className="text-xl font-bold text-slate-900 dark:text-white">
                 {(() => {
                   const sub = items.reduce((acc, item) => acc + (item.quantity * item.price), 0);
                   const afterD = Math.max(0, sub - discount);
                   const tax = (afterD * taxRate) / 100;
                   return (afterD + tax).toLocaleString();
-                })()} ج.م
+                })()} {t('egp')}
               </span>
             </div>
-            <Button type="submit" variant="secondary" className="w-full" disabled={items.length === 0}>حفظ الفاتورة</Button>
+            <Button type="submit" variant="secondary" className="w-full" disabled={items.length === 0}>{t('saveInvoice')}</Button>
           </div>
         </form>
       </Modal>
@@ -1637,26 +1653,26 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
         )}
       </Modal>
 
-      <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title="إضافة عميل سريع">
+      <Modal isOpen={isCustomerModalOpen} onClose={() => setIsCustomerModalOpen(false)} title={t('quickAddCustomer')}>
         <form onSubmit={handleAddCustomer} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الاسم</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('name')}</label>
             <Input name="name" required />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">البريد الإلكتروني</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('email')}</label>
             <Input name="email" type="email" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">رقم الهاتف</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('phone')}</label>
             <Input name="phone" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">العنوان</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('address')}</label>
             <Input name="address" />
           </div>
           <div className="pt-4">
-            <Button type="submit" variant="secondary" className="w-full">حفظ العميل</Button>
+            <Button type="submit" variant="secondary" className="w-full">{t('saveCustomer')}</Button>
           </div>
         </form>
       </Modal>
@@ -1665,6 +1681,7 @@ const SalesModule = ({ sales, customers, products, settings, canDo }: { sales: S
 };
 
 const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -1700,27 +1717,27 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">الحسابات والقيود</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('accounting')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className={`absolute ${dir === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
             <Input 
-              placeholder="بحث في القيود..." 
-              className="pr-10 w-64"
+              placeholder={t('searchTransactions')} 
+              className={`${dir === 'rtl' ? 'pr-10' : 'pl-10'} w-64`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <select 
-            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="h-10 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
           >
-            <option value="all">كل الأنواع</option>
-            <option value="income">دخل</option>
-            <option value="expense">مصروف</option>
+            <option value="all">{t('allTypes')}</option>
+            <option value="income">{t('income')}</option>
+            <option value="expense">{t('expense')}</option>
           </select>
           <Input 
             type="date"
@@ -1730,8 +1747,8 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
           />
           {canDo('accounting', 'canAdd') && (
             <Button onClick={() => setIsModalOpen(true)}>
-              <Plus className="w-4 h-4 ml-2" />
-              إضافة قيد يدوي
+              <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+              {t('addManualEntry')}
             </Button>
           )}
         </div>
@@ -1739,28 +1756,28 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
-            <thead className="bg-slate-50 border-b border-slate-200">
+          <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
+            <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
               <tr>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">التاريخ</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الوصف</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">التصنيف</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">المبلغ</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('date')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('description')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('category')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('amount')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredTransactions.map((trans) => (
-                <tr key={trans.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm text-slate-600">
+                <tr key={trans.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-900/50">
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
                     {format(new Date(trans.date), 'yyyy/MM/dd')}
                   </td>
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{trans.description}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{trans.category}</td>
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{trans.description}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{trans.category}</td>
                   <td className={cn(
                     'px-6 py-4 text-sm font-bold',
                     trans.type === 'income' ? 'text-emerald-600' : 'text-red-600'
                   )}>
-                    {trans.type === 'income' ? '+' : '-'}{trans.amount.toLocaleString()} ج.م
+                    {trans.type === 'income' ? '+' : '-'}{trans.amount.toLocaleString()} {t('egp')}
                   </td>
                 </tr>
               ))}
@@ -1769,31 +1786,31 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
         </div>
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="إضافة قيد محاسبي">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('addAccountingEntry')}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الوصف</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('description')}</label>
             <Input name="description" required />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">النوع</label>
-              <select name="type" className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
-                <option value="income">دخل (+)</option>
-                <option value="expense">مصروف (-)</option>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('type')}</label>
+              <select name="type" className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white" required>
+                <option value="income">{t('income')} (+)</option>
+                <option value="expense">{t('expense')} (-)</option>
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">المبلغ</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('amount')}</label>
               <Input name="amount" type="number" required />
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">التصنيف</label>
-            <Input name="category" placeholder="رواتب، إيجار، مبيعات..." />
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('category')}</label>
+            <Input name="category" placeholder={t('categoryPlaceholder')} />
           </div>
           <div className="pt-4">
-            <Button type="submit" className="w-full">حفظ القيد</Button>
+            <Button type="submit" className="w-full">{t('saveEntry')}</Button>
           </div>
         </form>
       </Modal>
@@ -1802,6 +1819,7 @@ const AccountingModule = ({ transactions, canDo }: { transactions: Transaction[]
 };
 
 const WarehousesModule = ({ warehouses, products, canDo }: { warehouses: Warehouse[], products: Product[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedWarehouseId, setSelectedWarehouseId] = useState<string | null>(null);
 
@@ -1827,12 +1845,12 @@ const WarehousesModule = ({ warehouses, products, canDo }: { warehouses: Warehou
   }, [products, selectedWarehouseId]);
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">هيكل المخازن</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('warehouseStructure')}</h2>
         <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة مخزن جديد
+          <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+          {t('addNewWarehouse')}
         </Button>
       </div>
 
@@ -1841,20 +1859,20 @@ const WarehousesModule = ({ warehouses, products, canDo }: { warehouses: Warehou
           <Card 
             key={w.id} 
             className={cn(
-              "p-6 cursor-pointer transition-all border-2",
-              selectedWarehouseId === w.id ? "border-indigo-500 bg-indigo-50/30" : "border-transparent"
+              "p-6 cursor-pointer transition-all border-2 dark:bg-slate-900 dark:border-slate-800",
+              selectedWarehouseId === w.id ? "border-indigo-500 bg-indigo-50/30 dark:bg-indigo-900/20" : "border-transparent"
             )}
             onClick={() => setSelectedWarehouseId(selectedWarehouseId === w.id ? null : w.id)}
           >
             <div className="flex items-start justify-between mb-4">
-              <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center">
-                <Package className="w-6 h-6 text-indigo-600" />
+              <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center dark:bg-indigo-900/30">
+                <Package className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
               </div>
               <span className="text-xs font-medium text-slate-400 font-mono">#{w.id?.slice(0, 6)}</span>
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-1">{w.name}</h3>
-            <p className="text-sm text-slate-500 flex items-center">
-              <MapPin className="w-3 h-3 ml-1" />
+            <h3 className="text-lg font-bold text-slate-900 mb-1 dark:text-white">{w.name}</h3>
+            <p className="text-sm text-slate-500 flex items-center dark:text-slate-400">
+              <MapPin className={`w-3 h-3 ${dir === 'rtl' ? 'ml-1' : 'mr-1'}`} />
               {w.location}
             </p>
           </Card>
@@ -1868,40 +1886,40 @@ const WarehousesModule = ({ warehouses, products, canDo }: { warehouses: Warehou
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
           >
-            <Card className="p-6">
+            <Card className="p-6 dark:bg-slate-900 dark:border-slate-800">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-slate-900">
-                  منتجات مخزن: {warehouses.find(w => w.id === selectedWarehouseId)?.name}
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  {t('warehouseProducts')}: {warehouses.find(w => w.id === selectedWarehouseId)?.name}
                 </h3>
-                <span className="text-sm text-slate-500">{selectedWarehouseProducts.length} صنف</span>
+                <span className="text-sm text-slate-500 dark:text-slate-400">{selectedWarehouseProducts.length} {t('itemsCount')}</span>
               </div>
               
               {selectedWarehouseProducts.length > 0 ? (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-right">
-                    <thead className="bg-slate-50 border-b border-slate-200">
+                  <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
+                    <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
                       <tr>
-                        <th className="px-6 py-4 text-sm font-semibold text-slate-600">المنتج</th>
-                        <th className="px-6 py-4 text-sm font-semibold text-slate-600">SKU</th>
-                        <th className="px-6 py-4 text-sm font-semibold text-slate-600">المخزون</th>
-                        <th className="px-6 py-4 text-sm font-semibold text-slate-600">القيمة</th>
+                        <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('product')}</th>
+                        <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">SKU</th>
+                        <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('stock')}</th>
+                        <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('total')}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {selectedWarehouseProducts.map((product) => (
                         <tr key={product.id}>
-                          <td className="px-6 py-4 text-sm font-medium text-slate-900">{product.name}</td>
-                          <td className="px-6 py-4 text-sm text-slate-600">{product.sku}</td>
-                          <td className="px-6 py-4 text-sm text-slate-600">{product.stock} {product.unit}</td>
-                          <td className="px-6 py-4 text-sm text-slate-900">{(product.stock * product.cost).toLocaleString()} ج.م</td>
+                          <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{product.name}</td>
+                          <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.sku}</td>
+                          <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.stock} {product.unit}</td>
+                          <td className="px-6 py-4 text-sm text-slate-900 dark:text-white">{(product.stock * product.cost).toLocaleString()} {t('egp')}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
               ) : (
-                <div className="text-center py-12 text-slate-500">
-                  لا توجد منتجات في هذا المخزن حالياً
+                <div className="text-center py-12 text-slate-500 dark:text-slate-400">
+                  {t('noProductsInWarehouse')}
                 </div>
               )}
             </Card>
@@ -1909,18 +1927,18 @@ const WarehousesModule = ({ warehouses, products, canDo }: { warehouses: Warehou
         )}
       </AnimatePresence>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="إضافة مخزن جديد">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('addNewWarehouse')}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">اسم المخزن</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('warehouseName')}</label>
             <Input name="name" required />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الموقع / العنوان</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('locationAddress')}</label>
             <Input name="location" required />
           </div>
           <div className="pt-4">
-            <Button type="submit" className="w-full">حفظ</Button>
+            <Button type="submit" className="w-full">{t('save')}</Button>
           </div>
         </form>
       </Modal>
@@ -1929,6 +1947,7 @@ const WarehousesModule = ({ warehouses, products, canDo }: { warehouses: Warehou
 };
 
 const StocktakingModule = ({ products, warehouses, canDo }: { products: Product[], warehouses: Warehouse[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [counts, setCounts] = useState<{ [productId: string]: number }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1968,45 +1987,45 @@ const StocktakingModule = ({ products, warehouses, canDo }: { products: Product[
           const transRef = doc(collection(db, 'transactions'));
           batch.set(transRef, {
             date: timestamp,
-            description: `تسوية مخزنية (جرد): ${product.name} في ${warehouses.find(w => w.id === selectedWarehouseId)?.name}`,
+            description: `${t('stockAdjustment')}: ${product.name} ${t('in')} ${warehouses.find(w => w.id === selectedWarehouseId)?.name}`,
             type: diff > 0 ? 'income' : 'expense',
             amount: Math.abs(diff * Number(product.cost)),
-            category: 'تسوية مخزنية'
+            category: t('stockAdjustment')
           });
         }
       });
 
       await batch.commit();
-      alert('تم تحديث المخزون بنجاح بناءً على الجرد');
+      alert(t('stockUpdatedSuccessfully'));
       setCounts({});
       setSelectedWarehouseId('');
     } catch (err) {
       console.error(err);
-      alert('حدث خطأ أثناء حفظ الجرد');
+      alert(t('errorSavingStocktaking'));
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">عملية الجرد</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('stocktakingProcess')}</h2>
       </div>
 
-      <Card className="p-6">
+      <Card className="p-6 dark:bg-slate-900 dark:border-slate-800">
         <div className="max-w-md space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">اختر المخزن للجرد</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('selectWarehouseForStocktaking')}</label>
             <select 
-              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
               value={selectedWarehouseId}
               onChange={(e) => {
                 setSelectedWarehouseId(e.target.value);
                 setCounts({});
               }}
             >
-              <option value="">اختر المخزن</option>
+              <option value="">{t('selectWarehouse')}</option>
               {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </div>
@@ -2014,30 +2033,30 @@ const StocktakingModule = ({ products, warehouses, canDo }: { products: Product[
       </Card>
 
       {selectedWarehouseId && (
-        <Card className="p-6">
+        <Card className="p-6 dark:bg-slate-900 dark:border-slate-800">
           <div className="overflow-x-auto">
-            <table className="w-full text-right">
-              <thead className="bg-slate-50 border-b border-slate-200">
+            <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
+              <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
                 <tr>
-                  <th className="px-6 py-4 text-sm font-semibold text-slate-600">المنتج</th>
-                  <th className="px-6 py-4 text-sm font-semibold text-slate-600">المخزون الحالي (النظام)</th>
-                  <th className="px-6 py-4 text-sm font-semibold text-slate-600">الكمية الفعلية (الجرد)</th>
-                  <th className="px-6 py-4 text-sm font-semibold text-slate-600">الفرق</th>
+                  <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('product')}</th>
+                  <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('currentStockSystem')}</th>
+                  <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actualQuantityStocktaking')}</th>
+                  <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('difference')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {warehouseProducts.map((product) => {
                   const currentCount = counts[product.id!] ?? product.stock;
                   const diff = currentCount - product.stock;
                   
                   return (
                     <tr key={product.id}>
-                      <td className="px-6 py-4 text-sm font-medium text-slate-900">{product.name}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{product.stock} {product.unit}</td>
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{product.name}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{product.stock} {product.unit}</td>
                       <td className="px-6 py-4">
                         <Input 
                           type="number" 
-                          className="w-32 h-9 text-sm"
+                          className={`w-32 h-9 text-sm ${dir === 'rtl' ? 'text-right' : 'text-left'}`}
                           value={currentCount}
                           onChange={(e) => handleCountChange(product.id!, Number(e.target.value))}
                         />
@@ -2055,14 +2074,14 @@ const StocktakingModule = ({ products, warehouses, canDo }: { products: Product[
             </table>
           </div>
           
-          <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end">
+          <div className="mt-8 pt-6 border-t border-slate-100 flex justify-end dark:border-slate-800">
             {canDo('stocktaking', 'canAdd') && (
               <Button 
                 onClick={handleSubmit} 
                 disabled={isSubmitting || warehouseProducts.length === 0}
-                className="px-8"
+                className="px-8 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
               >
-                {isSubmitting ? 'جاري الحفظ...' : 'اعتماد نتيجة الجرد'}
+                {isSubmitting ? t('saving') : t('saveStocktakingResults')}
               </Button>
             )}
           </div>
@@ -2073,6 +2092,7 @@ const StocktakingModule = ({ products, warehouses, canDo }: { products: Product[
 };
 
 const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -2102,23 +2122,23 @@ const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">إدارة العملاء</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('customerManagement')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className={`absolute ${dir === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
             <Input 
-              placeholder="بحث عن عميل..." 
-              className="pr-10 w-64"
+              placeholder={t('searchCustomer')} 
+              className={`${dir === 'rtl' ? 'pr-10' : 'pl-10'} w-64`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           {canDo('customers', 'canAdd') && (
             <Button onClick={() => setIsModalOpen(true)}>
-              <Plus className="w-4 h-4 ml-2" />
-              إضافة عميل جديد
+              <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+              {t('addNewCustomer')}
             </Button>
           )}
         </div>
@@ -2126,23 +2146,23 @@ const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
-            <thead className="bg-slate-50 border-b border-slate-200">
+          <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
+            <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
               <tr>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الاسم</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">البريد الإلكتروني</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الهاتف</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الإجراءات</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('name')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('email')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('phone')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredCustomers.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{c.name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{c.email || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{c.phone || '-'}</td>
+                <tr key={c.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-900/50">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{c.name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{c.email || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{c.phone || '-'}</td>
                   <td className="px-6 py-4 text-sm">
-                    <button className="text-indigo-600 hover:text-indigo-900 font-medium">عرض التفاصيل</button>
+                    <button className="text-indigo-600 hover:text-indigo-900 font-medium dark:text-indigo-400 dark:hover:text-indigo-300">{t('viewDetails')}</button>
                   </td>
                 </tr>
               ))}
@@ -2151,22 +2171,22 @@ const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (
         </div>
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="إضافة عميل جديد">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('addNewCustomer')}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الاسم</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('name')}</label>
             <Input name="name" required />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">البريد الإلكتروني</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('email')}</label>
             <Input name="email" type="email" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">رقم الهاتف</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('phone')}</label>
             <Input name="phone" />
           </div>
           <div className="pt-4">
-            <Button type="submit" className="w-full">حفظ</Button>
+            <Button type="submit" className="w-full">{t('save')}</Button>
           </div>
         </form>
       </Modal>
@@ -2175,6 +2195,7 @@ const CustomersModule = ({ customers, canDo }: { customers: Customer[], canDo: (
 };
 
 const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -2207,23 +2228,23 @@ const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">إدارة الموردين</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('supplierManagement')}</h2>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative">
-            <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Search className={`absolute ${dir === 'rtl' ? 'right-3' : 'left-3'} top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400`} />
             <Input 
-              placeholder="بحث عن مورد..." 
-              className="pr-10 w-64"
+              placeholder={t('searchSupplier')} 
+              className={`${dir === 'rtl' ? 'pr-10' : 'pl-10'} w-64`}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           {canDo('suppliers', 'canAdd') && (
             <Button onClick={() => setIsModalOpen(true)}>
-              <Plus className="w-4 h-4 ml-2" />
-              إضافة مورد جديد
+              <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+              {t('addNewSupplier')}
             </Button>
           )}
         </div>
@@ -2231,25 +2252,25 @@ const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (
 
       <Card>
         <div className="overflow-x-auto">
-          <table className="w-full text-right">
-            <thead className="bg-slate-50 border-b border-slate-200">
+          <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
+            <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
               <tr>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الاسم</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الشركة</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">البريد الإلكتروني</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الهاتف</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600">الإجراءات</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('name')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('company')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('email')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('phone')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredSuppliers.map((s) => (
-                <tr key={s.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900">{s.name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{s.companyName || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{s.email || '-'}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{s.phone || '-'}</td>
+                <tr key={s.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-900/50">
+                  <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{s.name}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.companyName || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.email || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{s.phone || '-'}</td>
                   <td className="px-6 py-4 text-sm">
-                    <button className="text-indigo-600 hover:text-indigo-900 font-medium">عرض التفاصيل</button>
+                    <button className="text-indigo-600 hover:text-indigo-900 font-medium dark:text-indigo-400 dark:hover:text-indigo-300">{t('viewDetails')}</button>
                   </td>
                 </tr>
               ))}
@@ -2258,38 +2279,38 @@ const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (
         </div>
       </Card>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="إضافة مورد جديد">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={t('addNewSupplier')}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">الاسم</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('name')}</label>
               <Input name="name" required />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">اسم الشركة</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('companyName')}</label>
               <Input name="companyName" />
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">الرقم الضريبي</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('taxId')}</label>
               <Input name="taxId" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">رقم الهاتف</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('phone')}</label>
               <Input name="phone" />
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">البريد الإلكتروني</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('email')}</label>
             <Input name="email" type="email" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">العنوان</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('address')}</label>
             <Input name="address" />
           </div>
           <div className="pt-4">
-            <Button type="submit" className="w-full">حفظ</Button>
+            <Button type="submit" className="w-full">{t('save')}</Button>
           </div>
         </form>
       </Modal>
@@ -2299,6 +2320,7 @@ const SuppliersModule = ({ suppliers, canDo }: { suppliers: Supplier[], canDo: (
 
 
 const CategoriesModule = ({ categories, canDo }: { categories: Category[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean }) => {
+  const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
 
@@ -2333,40 +2355,40 @@ const CategoriesModule = ({ categories, canDo }: { categories: Category[], canDo
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h2 className="text-2xl font-bold text-slate-900">إدارة التصنيفات</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('categoryManagement')}</h2>
         <Button onClick={() => { setEditingCategory(null); setIsModalOpen(true); }}>
-          <Plus className="w-4 h-4 ml-2" />
-          إضافة تصنيف جديد
+          <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+          {t('addNewCategory')}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {categories.map(c => (
-          <Card key={c.id} className="p-6 flex items-center justify-between">
+          <Card key={c.id} className="p-6 flex items-center justify-between dark:bg-slate-900 dark:border-slate-800">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center">
-                <Settings className="w-5 h-5 text-indigo-600" />
+              <div className="w-10 h-10 bg-indigo-50 rounded-lg flex items-center justify-center dark:bg-indigo-900/30">
+                <Settings className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
               </div>
-              <span className="font-bold text-slate-900">{c.name}</span>
+              <span className="font-bold text-slate-900 dark:text-white">{c.name}</span>
             </div>
             <div className="flex gap-2">
-              <Button variant="ghost" size="sm" onClick={() => { setEditingCategory(c); setIsModalOpen(true); }}>تعديل</Button>
-              <Button variant="danger" size="sm" onClick={() => c.id && handleDelete(c.id)}>حذف</Button>
+              <Button variant="ghost" size="sm" onClick={() => { setEditingCategory(c); setIsModalOpen(true); }}>{t('edit')}</Button>
+              <Button variant="danger" size="sm" onClick={() => c.id && handleDelete(c.id)}>{t('delete')}</Button>
             </div>
           </Card>
         ))}
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCategory ? 'تعديل تصنيف' : 'إضافة تصنيف جديد'}>
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCategory ? t('editCategory') : t('addNewCategory')}>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">اسم التصنيف</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('categoryName')}</label>
             <Input name="name" defaultValue={editingCategory?.name} required />
           </div>
           <div className="pt-4">
-            <Button type="submit" className="w-full">حفظ</Button>
+            <Button type="submit" className="w-full">{t('save')}</Button>
           </div>
         </form>
       </Modal>
@@ -2375,6 +2397,7 @@ const CategoriesModule = ({ categories, canDo }: { categories: Category[], canDo
 };
 
 const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: UserProfile[] }) => {
+  const { t, dir, language } = useTranslation();
   const [activeTab, setActiveTab] = useState('general');
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
@@ -2382,16 +2405,16 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
   const [userPermissions, setUserPermissions] = useState<{ [screenId: string]: UserPermissions }>({});
 
   const availableScreens = [
-    { id: 'dashboard', label: 'لوحة التحكم' },
-    { id: 'inventory', label: 'المخزون' },
-    { id: 'warehouses', label: 'المخازن' },
-    { id: 'stocktaking', label: 'الجرد' },
-    { id: 'purchases', label: 'المشتريات' },
-    { id: 'sales', label: 'المبيعات' },
-    { id: 'accounting', label: 'الحسابات' },
-    { id: 'customers', label: 'العملاء' },
-    { id: 'suppliers', label: 'الموردون' },
-    { id: 'categories', label: 'التصنيفات' },
+    { id: 'dashboard', label: t('dashboard') },
+    { id: 'inventory', label: t('inventory') },
+    { id: 'warehouses', label: t('warehouses') },
+    { id: 'stocktaking', label: t('stocktaking') },
+    { id: 'purchases', label: t('purchases') },
+    { id: 'sales', label: t('sales') },
+    { id: 'accounting', label: t('accounting') },
+    { id: 'customers', label: t('customers') },
+    { id: 'suppliers', label: t('suppliers') },
+    { id: 'categories', label: t('categories') },
   ];
 
   useEffect(() => {
@@ -2451,55 +2474,55 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
   };
 
   return (
-    <div className="space-y-6" dir="rtl">
+    <div className="space-y-6" dir={dir}>
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-slate-900">إعدادات النظام</h2>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('systemSettings')}</h2>
       </div>
 
-      <div className="flex gap-4 border-b border-slate-200 overflow-x-auto whitespace-nowrap">
+      <div className="flex gap-4 border-b border-slate-200 overflow-x-auto whitespace-nowrap dark:border-slate-800">
         <button
-          className={cn("pb-3 px-1 border-b-2 font-medium text-sm transition-colors", activeTab === 'general' ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700")}
+          className={cn("pb-3 px-1 border-b-2 font-medium text-sm transition-colors", activeTab === 'general' ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300")}
           onClick={() => setActiveTab('general')}
         >
-          الإعدادات العامة
+          {t('generalSettings')}
         </button>
         <button
-          className={cn("pb-3 px-1 border-b-2 font-medium text-sm transition-colors", activeTab === 'invoice' ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700")}
+          className={cn("pb-3 px-1 border-b-2 font-medium text-sm transition-colors", activeTab === 'invoice' ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300")}
           onClick={() => setActiveTab('invoice')}
         >
-          تصميم الفواتير
+          {t('invoiceDesign')}
         </button>
         <button
-          className={cn("pb-3 px-1 border-b-2 font-medium text-sm transition-colors", activeTab === 'users' ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700")}
+          className={cn("pb-3 px-1 border-b-2 font-medium text-sm transition-colors", activeTab === 'users' ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300")}
           onClick={() => setActiveTab('users')}
         >
-          المستخدمين والصلاحيات
+          {t('usersAndPermissions')}
         </button>
       </div>
 
       {activeTab === 'general' && (
-        <Card className="p-6 max-w-2xl">
+        <Card className="p-6 max-w-2xl dark:bg-slate-900 dark:border-slate-800">
           <form onSubmit={handleSaveSettings} className="space-y-4">
             <input type="hidden" name="invoiceHeader" value={settings.invoiceHeader || ''} />
             <input type="hidden" name="invoiceFooter" value={settings.invoiceFooter || ''} />
             <input type="hidden" name="primaryColor" value={settings.primaryColor || '#4f46e5'} />
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">اسم الشركة</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('companyName')}</label>
               <Input name="companyName" defaultValue={settings.companyName} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">الرقم الضريبي</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('taxId')}</label>
               <Input name="taxNumber" defaultValue={settings.taxNumber} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">نسبة الضريبة الافتراضية (%)</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('defaultTaxRate')} (%)</label>
               <Input name="taxRate" type="number" step="0.01" defaultValue={settings.taxRate} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">لغة النظام</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('systemLanguage')}</label>
               <select 
                 name="language" 
-                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-950 dark:border-slate-800 dark:text-white"
                 defaultValue={localStorage.getItem('language') || 'ar'}
                 onChange={(e) => {
                   localStorage.setItem('language', e.target.value);
@@ -2511,43 +2534,43 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
               </select>
             </div>
             <div className="pt-4">
-              <Button type="submit">حفظ الإعدادات</Button>
+              <Button type="submit">{t('saveSettings')}</Button>
             </div>
           </form>
         </Card>
       )}
 
       {activeTab === 'invoice' && (
-        <Card className="p-6 max-w-2xl">
+        <Card className="p-6 max-w-2xl dark:bg-slate-900 dark:border-slate-800">
           <form onSubmit={handleSaveSettings} className="space-y-4">
             <input type="hidden" name="companyName" value={settings.companyName || ''} />
             <input type="hidden" name="taxNumber" value={settings.taxNumber || ''} />
             <input type="hidden" name="taxRate" value={settings.taxRate || 0} />
             
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">ترويسة الفاتورة (Header)</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('invoiceHeader')}</label>
               <textarea 
                 name="invoiceHeader" 
                 defaultValue={settings.invoiceHeader}
-                className="flex min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="مثال: شركة الأمل للتجارة العامة..."
+                className="flex min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-950 dark:border-slate-800 dark:text-white"
+                placeholder={t('invoiceHeaderPlaceholder')}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">تذييل الفاتورة (Footer)</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('invoiceFooter')}</label>
               <textarea 
                 name="invoiceFooter" 
                 defaultValue={settings.invoiceFooter}
-                className="flex min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                placeholder="مثال: شكراً لتعاملكم معنا..."
+                className="flex min-h-[100px] w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-950 dark:border-slate-800 dark:text-white"
+                placeholder={t('invoiceFooterPlaceholder')}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-slate-700">اللون الأساسي للفاتورة</label>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('invoicePrimaryColor')}</label>
               <Input name="primaryColor" type="color" defaultValue={settings.primaryColor || '#4f46e5'} className="h-12 w-24 p-1" />
             </div>
             <div className="pt-4">
-              <Button type="submit">حفظ تصميم الفاتورة</Button>
+              <Button type="submit">{t('saveInvoiceDesign')}</Button>
             </div>
           </form>
         </Card>
@@ -2555,39 +2578,39 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
 
       {activeTab === 'users' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className={`flex ${dir === 'rtl' ? 'justify-end' : 'justify-start'}`}>
             <Button onClick={() => { setEditingUser(null); setIsUserModalOpen(true); }}>
-              <Plus className="w-4 h-4 ml-2" />
-              إضافة مستخدم
+              <Plus className={`w-4 h-4 ${dir === 'rtl' ? 'ml-2' : 'mr-2'}`} />
+              {t('addUser')}
             </Button>
           </div>
-          <Card>
+          <Card className="dark:bg-slate-900 dark:border-slate-800">
             <div className="overflow-x-auto">
-              <table className="w-full text-right">
-                <thead className="bg-slate-50 border-b border-slate-200">
+              <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'}`}>
+                <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
                   <tr>
-                    <th className="px-6 py-4 text-sm font-semibold text-slate-600">الاسم</th>
-                    <th className="px-6 py-4 text-sm font-semibold text-slate-600">البريد الإلكتروني</th>
-                    <th className="px-6 py-4 text-sm font-semibold text-slate-600">الصلاحية</th>
-                    <th className="px-6 py-4 text-sm font-semibold text-slate-600">الحالة</th>
-                    <th className="px-6 py-4 text-sm font-semibold text-slate-600">إجراءات</th>
+                    <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('name')}</th>
+                    <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('email')}</th>
+                    <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('role')}</th>
+                    <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('status')}</th>
+                    <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                   {users.map((u) => (
-                    <tr key={u.uid} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-6 py-4 text-sm font-medium text-slate-900">{u.displayName || 'غير محدد'}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">{u.email}</td>
-                      <td className="px-6 py-4 text-sm text-slate-600">
-                        {u.role === 'admin' ? 'مدير نظام' : 'مستخدم'}
+                    <tr key={u.uid} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-900/50">
+                      <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{u.displayName || t('notSet')}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{u.email}</td>
+                      <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">
+                        {u.role === 'admin' ? t('admin') : t('user')}
                       </td>
                       <td className="px-6 py-4 text-sm">
-                        <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium", u.isActive !== false ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-600")}>
-                          {u.isActive !== false ? 'نشط' : 'موقوف'}
+                        <span className={cn("px-2.5 py-1 rounded-full text-xs font-medium", u.isActive !== false ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" : "bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400")}>
+                          {u.isActive !== false ? t('active') : t('inactive')}
                         </span>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">
-                        <Button variant="ghost" size="sm" onClick={() => { setEditingUser(u); setIsUserModalOpen(true); }}>تعديل</Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditingUser(u); setIsUserModalOpen(true); }}>{t('edit')}</Button>
                       </td>
                     </tr>
                   ))}
@@ -2598,60 +2621,60 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
         </div>
       )}
 
-      <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={editingUser ? 'تعديل مستخدم' : 'إضافة مستخدم جديد'}>
+      <Modal isOpen={isUserModalOpen} onClose={() => setIsUserModalOpen(false)} title={editingUser ? t('editUser') : t('addNewUser')}>
         <form onSubmit={handleSaveUser} className="space-y-4">
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الاسم</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('name')}</label>
             <Input name="displayName" defaultValue={editingUser?.displayName} required />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">البريد الإلكتروني</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('email')}</label>
             <Input name="email" type="email" defaultValue={editingUser?.email} required />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الصلاحية</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('role')}</label>
             <select 
               name="role" 
-              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-950 dark:border-slate-800 dark:text-white"
               defaultValue={editingUser?.role || 'user'}
             >
-              <option value="user">مستخدم</option>
-              <option value="admin">مدير نظام</option>
+              <option value="user">{t('user')}</option>
+              <option value="admin">{t('admin')}</option>
             </select>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الحالة</label>
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('status')}</label>
             <select 
               name="isActive" 
-              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-950 dark:border-slate-800 dark:text-white"
               defaultValue={editingUser?.isActive !== false ? 'true' : 'false'}
             >
-              <option value="true">نشط</option>
-              <option value="false">موقوف</option>
+              <option value="true">{t('active')}</option>
+              <option value="false">{t('inactive')}</option>
             </select>
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-slate-700">الشاشات والصلاحيات</label>
-            <div className="border border-slate-200 rounded-lg bg-slate-50 overflow-hidden">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-slate-100 border-b border-slate-200">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('screensAndPermissions')}</label>
+            <div className="border border-slate-200 rounded-lg bg-slate-50 overflow-hidden dark:bg-slate-900 dark:border-slate-800">
+              <table className={`w-full ${dir === 'rtl' ? 'text-right' : 'text-left'} text-xs`}>
+                <thead className="bg-slate-100 border-b border-slate-200 dark:bg-slate-800 dark:border-slate-700">
                   <tr>
-                    <th className="px-3 py-2 font-semibold text-slate-600">الشاشة</th>
-                    <th className="px-2 py-2 font-semibold text-slate-600 text-center">دخول</th>
-                    <th className="px-2 py-2 font-semibold text-slate-600 text-center">إضافة</th>
-                    <th className="px-2 py-2 font-semibold text-slate-600 text-center">تعديل</th>
-                    <th className="px-2 py-2 font-semibold text-slate-600 text-center">حذف</th>
+                    <th className="px-3 py-2 font-semibold text-slate-600 dark:text-slate-400">{t('screen')}</th>
+                    <th className="px-2 py-2 font-semibold text-slate-600 text-center dark:text-slate-400">{t('access')}</th>
+                    <th className="px-2 py-2 font-semibold text-slate-600 text-center dark:text-slate-400">{t('add')}</th>
+                    <th className="px-2 py-2 font-semibold text-slate-600 text-center dark:text-slate-400">{t('edit')}</th>
+                    <th className="px-2 py-2 font-semibold text-slate-600 text-center dark:text-slate-400">{t('delete')}</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-200">
+                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                   {availableScreens.map(screen => (
-                    <tr key={screen.id} className="hover:bg-white transition-colors">
-                      <td className="px-3 py-2 font-medium text-slate-700">{screen.label}</td>
+                    <tr key={screen.id} className="hover:bg-white transition-colors dark:hover:bg-slate-950">
+                      <td className="px-3 py-2 font-medium text-slate-700 dark:text-slate-300">{t(screen.id)}</td>
                       <td className="px-2 py-2 text-center">
                         <input
                           type="checkbox"
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 dark:bg-slate-950 dark:border-slate-800"
                           checked={selectedScreens.includes(screen.id)}
                           onChange={(e) => {
                             if (e.target.checked) {
@@ -2672,7 +2695,7 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
                         <input
                           type="checkbox"
                           disabled={!selectedScreens.includes(screen.id)}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30"
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30 dark:bg-slate-950 dark:border-slate-800"
                           checked={userPermissions[screen.id]?.canAdd || false}
                           onChange={(e) => {
                             setUserPermissions({
@@ -2686,7 +2709,7 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
                         <input
                           type="checkbox"
                           disabled={!selectedScreens.includes(screen.id)}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30"
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30 dark:bg-slate-950 dark:border-slate-800"
                           checked={userPermissions[screen.id]?.canEdit || false}
                           onChange={(e) => {
                             setUserPermissions({
@@ -2700,7 +2723,7 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
                         <input
                           type="checkbox"
                           disabled={!selectedScreens.includes(screen.id)}
-                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30"
+                          className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 disabled:opacity-30 dark:bg-slate-950 dark:border-slate-800"
                           checked={userPermissions[screen.id]?.canDelete || false}
                           onChange={(e) => {
                             setUserPermissions({
@@ -2717,7 +2740,7 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
             </div>
           </div>
           <div className="pt-4">
-            <Button type="submit" className="w-full">حفظ المستخدم</Button>
+            <Button type="submit" className="w-full">{t('saveUser')}</Button>
           </div>
         </form>
       </Modal>
@@ -2728,22 +2751,13 @@ const SettingsModule = ({ settings, users }: { settings: SystemSettings, users: 
 // --- Main App ---
 
 export default function App() {
+  const { t, dir, language, setLanguage, theme, setTheme } = useTranslation();
   const [user, setUser] = useState<User | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => localStorage.getItem('theme') === 'dark');
-  const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'ar');
-
-  useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
-    }
-  }, [isDarkMode]);
+  const isDarkMode = theme === 'dark';
+  const setIsDarkMode = (dark: boolean) => setTheme(dark ? 'dark' : 'light');
 
   const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
 
@@ -2918,23 +2932,20 @@ export default function App() {
   };
 
   const navItems = useMemo(() => {
-    let items = [
-      { id: 'dashboard', label: language === 'ar' ? 'لوحة التحكم' : 'Dashboard', icon: LayoutDashboard },
-      { id: 'inventory', label: language === 'ar' ? 'المخزون' : 'Inventory', icon: Package },
-      { id: 'warehouses', label: language === 'ar' ? 'المخازن' : 'Warehouses', icon: MapPin },
-      { id: 'stocktaking', label: language === 'ar' ? 'الجرد' : 'Stocktaking', icon: CheckCircle2 },
-      { id: 'purchases', label: language === 'ar' ? 'المشتريات' : 'Purchases', icon: ShoppingCart },
-      { id: 'sales', label: language === 'ar' ? 'المبيعات' : 'Sales', icon: TrendingUp },
-      { id: 'accounting', label: language === 'ar' ? 'الحسابات' : 'Accounting', icon: DollarSign },
-      { id: 'customers', label: language === 'ar' ? 'العملاء' : 'Customers', icon: UserCircle },
-      { id: 'suppliers', label: language === 'ar' ? 'الموردون' : 'Suppliers', icon: Truck },
-      { id: 'categories', label: language === 'ar' ? 'التصنيفات' : 'Categories', icon: Settings },
+    return [
+      { id: 'dashboard', label: t('dashboard'), icon: LayoutDashboard },
+      { id: 'inventory', label: t('inventory'), icon: Package },
+      { id: 'warehouses', label: t('warehouses'), icon: MapPin },
+      { id: 'stocktaking', label: t('stocktaking'), icon: CheckCircle2 },
+      { id: 'purchases', label: t('purchases'), icon: ShoppingCart },
+      { id: 'sales', label: t('sales'), icon: TrendingUp },
+      { id: 'accounting', label: t('accounting'), icon: DollarSign },
+      { id: 'customers', label: t('customers'), icon: UserCircle },
+      { id: 'suppliers', label: t('suppliers'), icon: Truck },
+      { id: 'categories', label: t('categories'), icon: Settings },
+      { id: 'settings', label: t('systemSettings'), icon: Settings },
     ];
-
-    items.push({ id: 'settings', label: language === 'ar' ? 'إعدادات النظام' : 'Settings', icon: Settings });
-    
-    return items;
-  }, [currentUserProfile?.role, currentUserProfile?.allowedScreens, users.length, language]);
+  }, [t]);
 
   // Ensure activeTab is valid
   useEffect(() => {
@@ -2946,20 +2957,20 @@ export default function App() {
   if (!user) {
     return (
       <ErrorBoundary>
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4" dir={dir}>
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             className="max-w-md w-full"
           >
-            <Card className="p-8 text-center">
-              <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-200">
+            <Card className="p-8 text-center dark:bg-slate-800 dark:border-slate-700">
+              <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20">
                 <TrendingUp className="w-8 h-8 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-slate-900 mb-2">نظام ERP المتكامل</h1>
-              <p className="text-slate-500 mb-8">قم بتسجيل الدخول لإدارة أعمالك بكل سهولة واحترافية.</p>
+              <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">{t('erpSystem')}</h1>
+              <p className="text-slate-500 dark:text-slate-400 mb-8">{t('loginDescription')}</p>
               <Button onClick={handleLogin} className="w-full h-12 text-base">
-                تسجيل الدخول بواسطة جوجل
+                {t('loginWithGoogle')}
               </Button>
             </Card>
           </motion.div>
@@ -2970,21 +2981,21 @@ export default function App() {
 
   if (!isUsersLoaded) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
-        <div className="text-slate-500">جاري تحميل بيانات النظام...</div>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4" dir={dir}>
+        <div className="text-slate-500 dark:text-slate-400">{t('loadingSystemData')}</div>
       </div>
     );
   }
 
   if (users.length > 0 && !currentUserProfile) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
-        <Card className="p-8 max-w-md w-full text-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4" dir={dir}>
+        <Card className="p-8 max-w-md w-full text-center dark:bg-slate-800 dark:border-slate-700">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-900 mb-2">غير مصرح لك بالدخول</h2>
-          <p className="text-slate-600 mb-6">حسابك غير مسجل في النظام. يرجى التواصل مع مدير النظام لإضافتك.</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{t('unauthorizedAccess')}</h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">{t('unauthorizedDescription')}</p>
           <Button onClick={handleLogout} className="w-full">
-            تسجيل الخروج
+            {t('logout')}
           </Button>
         </Card>
       </div>
@@ -2993,13 +3004,13 @@ export default function App() {
 
   if (currentUserProfile && currentUserProfile.isActive === false) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4" dir="rtl">
-        <Card className="p-8 max-w-md w-full text-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4" dir={dir}>
+        <Card className="p-8 max-w-md w-full text-center dark:bg-slate-800 dark:border-slate-700">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-slate-900 mb-2">حساب موقوف</h2>
-          <p className="text-slate-600 mb-6">تم إيقاف حسابك من قبل مدير النظام.</p>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{t('accountSuspended')}</h2>
+          <p className="text-slate-600 dark:text-slate-400 mb-6">{t('suspendedDescription')}</p>
           <Button onClick={handleLogout} className="w-full">
-            تسجيل الخروج
+            {t('logout')}
           </Button>
         </Card>
       </div>
@@ -3027,18 +3038,18 @@ export default function App() {
         initial={false}
         animate={{ 
           width: isMobile ? 280 : (isSidebarOpen ? 280 : 80),
-          x: isMobile ? (isSidebarOpen ? 0 : (language === 'ar' ? 280 : -280)) : 0
+          x: isMobile ? (isSidebarOpen ? 0 : (dir === 'rtl' ? 280 : -280)) : 0
         }}
         className={cn(
           "fixed inset-y-0 z-40 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden",
-          language === 'ar' ? "right-0 border-l" : "left-0 border-r"
+          dir === 'rtl' ? "right-0 border-l" : "left-0 border-r"
         )}
       >
         <div className="h-16 flex items-center px-6 border-b border-slate-100 dark:border-slate-700 shrink-0">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
             <TrendingUp className="w-5 h-5 text-white" />
           </div>
-          {(isSidebarOpen || isMobile) && <span className="mx-3 font-bold text-slate-900 dark:text-white truncate">نظام ERP</span>}
+          {(isSidebarOpen || isMobile) && <span className="mx-3 font-bold text-slate-900 dark:text-white truncate">{t('erpSystem')}</span>}
         </div>
 
         <nav className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
@@ -3068,7 +3079,7 @@ export default function App() {
             className="w-full flex items-center px-3 py-2.5 rounded-lg text-slate-500 hover:bg-red-50 hover:text-red-600 dark:text-slate-400 dark:hover:bg-red-500/10 dark:hover:text-red-400 transition-all duration-200"
           >
             <LogOut className="w-5 h-5 shrink-0" />
-            {(isSidebarOpen || isMobile) && <span className="mx-3 font-medium text-sm whitespace-nowrap">تسجيل الخروج</span>}
+            {(isSidebarOpen || isMobile) && <span className="mx-3 font-medium text-sm whitespace-nowrap">{t('logout')}</span>}
           </button>
         </div>
       </motion.aside>
@@ -3076,7 +3087,7 @@ export default function App() {
       {/* Main Content */}
       <main className={cn(
         'flex-1 transition-all duration-300 min-w-0',
-        isMobile ? 'mx-0' : (isSidebarOpen ? (language === 'ar' ? 'mr-[280px]' : 'ml-[280px]') : (language === 'ar' ? 'mr-[80px]' : 'ml-[80px]'))
+        isMobile ? 'mx-0' : (isSidebarOpen ? (dir === 'rtl' ? 'mr-[280px]' : 'ml-[280px]') : (dir === 'rtl' ? 'mr-[80px]' : 'ml-[80px]'))
       )}>
         <header className="h-16 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20 px-4 md:px-8 flex items-center justify-between">
           <button 
@@ -3088,12 +3099,18 @@ export default function App() {
 
           <div className="flex items-center gap-4">
             <button
+              onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700 transition-colors border border-slate-200 dark:border-slate-600"
+            >
+              {language === 'ar' ? 'English' : 'العربية'}
+            </button>
+            <button
               onClick={() => setIsDarkMode(!isDarkMode)}
               className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
             >
               {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            <div className="text-left">
+            <div className={`${dir === 'rtl' ? 'text-left' : 'text-right'}`}>
               <p className="text-sm font-semibold text-slate-900 dark:text-white leading-none">{user.displayName}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{user.email}</p>
             </div>
