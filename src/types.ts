@@ -3,15 +3,49 @@ export interface Product {
   name: string;
   sku: string;
   category: string;
+  subCategory?: string;
+  brand?: string;
+  color?: string;
+  size?: string;
   price: number;
   cost: number;
-  stock: number;
+  stock: number; // Total stock for backward compatibility or general use
+  stockLeft: number;
+  stockRight: number;
   unit: string;
   warehouseId: string;
   barcode?: string;
   piecesPerCarton?: number;
   cartonPrice?: number;
   cartonCost?: number;
+  imageUrl?: string;
+}
+
+export interface WarehouseTransfer {
+  id?: string;
+  fromWarehouseId: string;
+  toWarehouseId: string;
+  productId: string;
+  quantityLeft: number;
+  quantityRight: number;
+  date: string;
+  note?: string;
+}
+
+export interface ReturnItem {
+  productId: string;
+  quantityLeft: number;
+  quantityRight: number;
+  reason?: string;
+}
+
+export interface Return {
+  id?: string;
+  saleId: string;
+  date: string;
+  items: ReturnItem[];
+  totalRefund: number;
+  status: 'completed' | 'pending';
 }
 
 export interface Warehouse {
@@ -41,7 +75,9 @@ export interface Customer {
 
 export interface PurchaseItem {
   productId: string;
-  quantity: number;
+  quantity: number; // Total quantity (pairs or total pieces)
+  quantityLeft: number;
+  quantityRight: number;
   cost: number;
   discount?: number; // percentage
   unitType?: 'piece' | 'carton';
@@ -61,6 +97,8 @@ export interface Purchase {
 export interface SaleItem {
   productId: string;
   quantity: number;
+  quantityLeft: number;
+  quantityRight: number;
   price: number;
   unitType?: 'piece' | 'carton';
 }
@@ -99,6 +137,11 @@ export interface UserPermissions {
   canDelete: boolean;
 }
 
+export interface ScreenCredential {
+  username: string;
+  password?: string;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
@@ -108,6 +151,9 @@ export interface UserProfile {
   allowedScreens?: string[];
   permissions?: {
     [screenId: string]: UserPermissions;
+  };
+  screenCredentials?: {
+    [screenId: string]: ScreenCredential;
   };
 }
 

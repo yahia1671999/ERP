@@ -6,7 +6,7 @@ service cloud.firestore {
     // Assumed Data Model
     // ===============================================================
     // Collection: products
-    // Fields: name (string), sku (string), category (string), price (number), cost (number), stock (number), unit (string)
+    // Fields: name (string), sku (string), category (string), price (number), cost (number), stock (number), stockLeft (number), stockRight (number), unit (string)
     //
     // Collection: suppliers
     // Fields: name (string), contact (string), email (string), phone (string)
@@ -22,6 +22,12 @@ service cloud.firestore {
     //
     // Collection: transactions
     // Fields: date (string), description (string), type (string: income|expense), amount (number), category (string)
+    //
+    // Collection: transfers
+    // Fields: fromWarehouseId (string), toWarehouseId (string), productId (string), quantityLeft (number), quantityRight (number), date (string)
+    //
+    // Collection: returns
+    // Fields: saleId (string), date (string), items (list of maps), totalRefund (number), status (string)
     // ===============================================================
 
     // ===============================================================
@@ -47,12 +53,14 @@ service cloud.firestore {
     // Domain Validators
     // ===============================================================
     function isValidProduct(data) {
-      return hasRequiredFields(['name', 'sku', 'price', 'cost', 'stock']) &&
+      return hasRequiredFields(['name', 'sku', 'price', 'cost', 'stock', 'stockLeft', 'stockRight']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
              data.sku is string && data.sku.size() > 0 &&
              data.price is number && data.price >= 0 &&
              data.cost is number && data.cost >= 0 &&
              data.stock is number &&
+             data.stockLeft is number &&
+             data.stockRight is number &&
              (!('piecesPerCarton' in data) || (data.piecesPerCarton is number && data.piecesPerCarton >= 0)) &&
              (!('cartonPrice' in data) || (data.cartonPrice is number && data.cartonPrice >= 0)) &&
              (!('cartonCost' in data) || (data.cartonCost is number && data.cartonCost >= 0));
@@ -89,6 +97,25 @@ service cloud.firestore {
              data.description is string &&
              data.type in ['income', 'expense'] &&
              data.amount is number && data.amount >= 0;
+    }
+
+    function isValidTransfer(data) {
+      return hasRequiredFields(['fromWarehouseId', 'toWarehouseId', 'productId', 'quantityLeft', 'quantityRight', 'date']) &&
+             data.fromWarehouseId is string &&
+             data.toWarehouseId is string &&
+             data.productId is string &&
+             data.quantityLeft is number &&
+             data.quantityRight is number &&
+             data.date is string;
+    }
+
+    function isValidReturn(data) {
+      return hasRequiredFields(['saleId', 'date', 'items', 'totalRefund', 'status']) &&
+             data.saleId is string &&
+             data.date is string &&
+             data.items is list &&
+             data.totalRefund is number &&
+             data.status in ['completed', 'pending'];
     }
 
     function hasPermission(screenId, action) {
@@ -183,6 +210,20 @@ service cloud.firestore {
       allow create: if hasPermission('categories', 'canAdd') && hasRequiredFields(['name']);
       allow update: if hasPermission('categories', 'canEdit') && hasRequiredFields(['name']);
       allow delete: if hasPermission('categories', 'canDelete');
+    }
+
+    match /transfers/{transferId} {
+      allow read: if isAuthenticated();
+      allow create: if hasPermission('transfers', 'canAdd') && isValidTransfer(request.resource.data);
+      allow update: if hasPermission('transfers', 'canEdit');
+      allow delete: if hasPermission('transfers', 'canDelete');
+    }
+
+    match /returns/{returnId} {
+      allow read: if isAuthenticated();
+      allow create: if hasPermission('returns', 'canAdd') && isValidReturn(request.resource.data);
+      allow update: if hasPermission('returns', 'canEdit');
+      allow delete: if hasPermission('returns', 'canDelete');
     }
 
     match /settings/{settingId} {

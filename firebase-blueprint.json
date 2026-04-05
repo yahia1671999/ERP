@@ -11,10 +11,17 @@
         "price": { "type": "number", "description": "Selling price" },
         "cost": { "type": "number", "description": "Purchase cost" },
         "stock": { "type": "number", "description": "Current stock level" },
+        "stockLeft": { "type": "number", "description": "Left shoe stock" },
+        "stockRight": { "type": "number", "description": "Right shoe stock" },
         "unit": { "type": "string", "description": "Unit of measure (e.g., kg, pcs)" },
-        "warehouseId": { "type": "string", "description": "ID of the warehouse where this product is stored" }
+        "warehouseId": { "type": "string", "description": "ID of the warehouse where this product is stored" },
+        "subCategory": { "type": "string" },
+        "brand": { "type": "string" },
+        "color": { "type": "string" },
+        "size": { "type": "string" },
+        "imageUrl": { "type": "string" }
       },
-      "required": ["name", "sku", "price", "cost", "stock", "warehouseId"]
+      "required": ["name", "sku", "price", "cost", "stock", "stockLeft", "stockRight", "warehouseId"]
     },
     "Warehouse": {
       "title": "Warehouse",
@@ -107,6 +114,45 @@
         "category": { "type": "string" }
       },
       "required": ["date", "description", "type", "amount"]
+    },
+    "WarehouseTransfer": {
+      "title": "WarehouseTransfer",
+      "description": "Transfer of products between warehouses",
+      "type": "object",
+      "properties": {
+        "fromWarehouseId": { "type": "string" },
+        "toWarehouseId": { "type": "string" },
+        "productId": { "type": "string" },
+        "quantityLeft": { "type": "number" },
+        "quantityRight": { "type": "number" },
+        "date": { "type": "string", "format": "date-time" },
+        "note": { "type": "string" }
+      },
+      "required": ["fromWarehouseId", "toWarehouseId", "productId", "quantityLeft", "quantityRight", "date"]
+    },
+    "Return": {
+      "title": "Return",
+      "description": "Product return record",
+      "type": "object",
+      "properties": {
+        "saleId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "quantityLeft": { "type": "number" },
+              "quantityRight": { "type": "number" },
+              "reason": { "type": "string" }
+            }
+          }
+        },
+        "totalRefund": { "type": "number" },
+        "status": { "type": "string", "enum": ["completed", "pending"] }
+      },
+      "required": ["saleId", "date", "items", "totalRefund", "status"]
     }
   },
   "firestore": {
@@ -116,6 +162,8 @@
     "/customers": { "schema": "Customer", "description": "Customers list" },
     "/purchases": { "schema": "Purchase", "description": "Purchase records" },
     "/sales": { "schema": "Sale", "description": "Sales records" },
-    "/transactions": { "schema": "Transaction", "description": "Accounting transactions" }
+    "/transactions": { "schema": "Transaction", "description": "Accounting transactions" },
+    "/transfers": { "schema": "WarehouseTransfer", "description": "Warehouse transfer records" },
+    "/returns": { "schema": "Return", "description": "Product return records" }
   }
 }
