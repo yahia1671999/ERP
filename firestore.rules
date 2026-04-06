@@ -135,13 +135,16 @@ service cloud.firestore {
     }
 
     function isValidReturn(data) {
-      return hasRequiredFields(['saleId', 'date', 'items', 'totalRefund', 'status']) &&
-             data.saleId is string &&
+      return hasRequiredFields(['date', 'items', 'totalRefund', 'status', 'type']) &&
              data.date is string &&
              data.items is list &&
              data.totalRefund is number &&
              data.status in ['completed', 'pending'] &&
-             (!('customerId' in data) || data.customerId is string);
+             data.type in ['sale', 'purchase'] &&
+             (!('saleId' in data) || data.saleId is string) &&
+             (!('purchaseId' in data) || data.purchaseId is string) &&
+             (!('customerId' in data) || data.customerId is string) &&
+             (!('supplierId' in data) || data.supplierId is string);
     }
 
     function hasPermission(screenId, action) {

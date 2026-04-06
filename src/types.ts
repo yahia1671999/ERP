@@ -41,12 +41,15 @@ export interface ReturnItem {
 
 export interface Return {
   id?: string;
-  saleId: string;
+  saleId?: string;
+  purchaseId?: string;
   customerId?: string;
+  supplierId?: string;
   date: string;
   items: ReturnItem[];
   totalRefund: number;
   status: 'completed' | 'pending';
+  type: 'sale' | 'purchase';
 }
 
 export interface Warehouse {
