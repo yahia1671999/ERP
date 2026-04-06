@@ -49,31 +49,48 @@ service cloud.firestore {
       return request.resource.data.keys().hasAll(fields);
     }
 
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
     // ===============================================================
     // Domain Validators
     // ===============================================================
     function isValidProduct(data) {
-      return hasRequiredFields(['name', 'sku', 'price', 'cost', 'stock', 'stockLeft', 'stockRight']) &&
+      return hasRequiredFields(['name', 'sku', 'price', 'cost', 'stock', 'stockLeft', 'stockRight', 'unit', 'warehouseId']) &&
              data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.sku is string && data.sku.size() > 0 &&
+             data.sku is string && data.sku.size() > 0 && data.sku.size() < 50 &&
              data.price is number && data.price >= 0 &&
              data.cost is number && data.cost >= 0 &&
              data.stock is number &&
              data.stockLeft is number &&
              data.stockRight is number &&
+             data.unit is string &&
+             data.warehouseId is string &&
              (!('piecesPerCarton' in data) || (data.piecesPerCarton is number && data.piecesPerCarton >= 0)) &&
              (!('cartonPrice' in data) || (data.cartonPrice is number && data.cartonPrice >= 0)) &&
-             (!('cartonCost' in data) || (data.cartonCost is number && data.cartonCost >= 0));
+             (!('cartonCost' in data) || (data.cartonCost is number && data.cartonCost >= 0)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() < 1000000)) &&
+             (!('category' in data) || data.category is string) &&
+             (!('subCategory' in data) || data.subCategory is string) &&
+             (!('brand' in data) || data.brand is string) &&
+             (!('color' in data) || data.color is string) &&
+             (!('size' in data) || data.size is string) &&
+             (!('barcode' in data) || data.barcode is string);
     }
 
     function isValidSupplier(data) {
       return hasRequiredFields(['name']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100;
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('email' in data) || (data.email is string && data.email.size() < 100)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() < 20));
     }
 
     function isValidCustomer(data) {
       return hasRequiredFields(['name']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100;
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             (!('email' in data) || (data.email is string && data.email.size() < 100)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() < 20));
     }
 
     function isValidPurchase(data) {
@@ -81,22 +98,30 @@ service cloud.firestore {
              data.supplierId is string &&
              data.items is list &&
              data.total is number && data.total >= 0 &&
-             (!('invoiceUrl' in data) || data.invoiceUrl is string);
+             (!('totalDiscount' in data) || data.totalDiscount is number) &&
+             (!('discountType' in data) || data.discountType in ['percentage', 'fixed']) &&
+             (!('invoiceUrl' in data) || (data.invoiceUrl is string && data.invoiceUrl.size() < 1000000));
     }
 
     function isValidSale(data) {
-      return hasRequiredFields(['customerId', 'date', 'items', 'total']) &&
+      return hasRequiredFields(['invoiceNumber', 'customerId', 'date', 'items', 'total', 'paymentMethod']) &&
+             data.invoiceNumber is string &&
              data.customerId is string &&
              data.items is list &&
              data.total is number && data.total >= 0 &&
-             (!('discount' in data) || (data.discount is number && data.discount >= 0));
+             data.paymentMethod in ['cash', 'card', 'other'] &&
+             (!('discount' in data) || data.discount is number) &&
+             (!('tax' in data) || data.tax is number);
     }
 
     function isValidTransaction(data) {
       return hasRequiredFields(['date', 'description', 'type', 'amount']) &&
-             data.description is string &&
+             data.description is string && data.description.size() < 500 &&
              data.type in ['income', 'expense'] &&
-             data.amount is number && data.amount >= 0;
+             data.amount is number && data.amount >= 0 &&
+             (!('category' in data) || data.category is string) &&
+             (!('referenceId' in data) || data.referenceId is string) &&
+             (!('attachmentUrl' in data) || (data.attachmentUrl is string && data.attachmentUrl.size() < 1000000));
     }
 
     function isValidTransfer(data) {
@@ -115,11 +140,24 @@ service cloud.firestore {
              data.date is string &&
              data.items is list &&
              data.totalRefund is number &&
-             data.status in ['completed', 'pending'];
+             data.status in ['completed', 'pending'] &&
+             (!('customerId' in data) || data.customerId is string);
     }
 
     function hasPermission(screenId, action) {
-      return isAuthenticated();
+      return isAuthenticated() && (
+        isAdmin() || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true &&
+          screenId in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.allowedScreens &&
+          action in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions[screenId] &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.permissions[screenId][action] == true
+        )
+      );
+    }
+
+    function isRecent(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
     }
 
     // ===============================================================
@@ -130,30 +168,24 @@ service cloud.firestore {
       return hasRequiredFields(['email', 'role', 'isActive']) &&
              data.email is string &&
              data.role in ['admin', 'user'] &&
-             data.isActive is bool;
+             data.isActive is bool &&
+             (!('uid' in data) || data.uid is string) &&
+             (!('displayName' in data) || data.displayName is string) &&
+             (!('allowedScreens' in data) || data.allowedScreens is list) &&
+             (!('permissions' in data) || data.permissions is map) &&
+             (!('screenCredentials' in data) || data.screenCredentials is map);
     }
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (
-        isAdmin() || 
-        (request.auth.uid == userId && (
-          // Default for new users
-          (request.resource.data.role == 'user' && request.resource.data.isActive == false) ||
-          // Allow migration if email-based doc exists and matches
-          (exists(/databases/$(database)/documents/users/$(request.auth.token.email)) && 
-           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role == request.resource.data.role &&
-           get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.isActive == request.resource.data.isActive)
-        ))
-      );
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        (request.auth.uid == userId && 
-         request.resource.data.role == resource.data.role && 
-         request.resource.data.isActive == resource.data.isActive &&
-         request.resource.data.email == resource.data.email)
-      );
-      allow delete: if isAdmin() || (isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == userId));
+      allow write: if isAuthenticated() && (
+        isAdmin() || request.auth.uid == userId || request.auth.token.email == userId
+      ) && isValidUser(request.resource.data);
+      allow delete: if isAdmin() || (isAuthenticated() && (
+        request.auth.uid == userId || 
+        request.auth.token.email == userId ||
+        (resource != null && resource.data.email == request.auth.token.email)
+      ));
     }
 
     match /products/{productId} {

@@ -42,6 +42,7 @@ export interface ReturnItem {
 export interface Return {
   id?: string;
   saleId: string;
+  customerId?: string;
   date: string;
   items: ReturnItem[];
   totalRefund: number;

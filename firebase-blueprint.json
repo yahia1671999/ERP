@@ -136,6 +136,7 @@
       "type": "object",
       "properties": {
         "saleId": { "type": "string" },
+        "customerId": { "type": "string" },
         "date": { "type": "string", "format": "date-time" },
         "items": {
           "type": "array",
@@ -153,6 +154,22 @@
         "status": { "type": "string", "enum": ["completed", "pending"] }
       },
       "required": ["saleId", "date", "items", "totalRefund", "status"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile and permissions",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "displayName": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "allowedScreens": { "type": "array", "items": { "type": "string" } },
+        "permissions": { "type": "object" },
+        "screenCredentials": { "type": "object" }
+      },
+      "required": ["email", "role", "isActive"]
     }
   },
   "firestore": {
@@ -164,6 +181,7 @@
     "/sales": { "schema": "Sale", "description": "Sales records" },
     "/transactions": { "schema": "Transaction", "description": "Accounting transactions" },
     "/transfers": { "schema": "WarehouseTransfer", "description": "Warehouse transfer records" },
-    "/returns": { "schema": "Return", "description": "Product return records" }
+    "/returns": { "schema": "Return", "description": "Product return records" },
+    "/users": { "schema": "UserProfile", "description": "User profiles and permissions" }
   }
 }

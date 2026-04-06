@@ -36,7 +36,20 @@ import {
   Printer,
   Eye,
   FileText,
-  Paperclip
+  Paperclip,
+  Calendar,
+  ChevronDown,
+  Edit2,
+  ChevronLeft,
+  TrendingDown,
+  Download,
+  ArrowLeftRight,
+  ClipboardCheck,
+  Lock,
+  Shield,
+  Camera,
+  Upload,
+  ImageIcon
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -64,7 +77,7 @@ import {
   setDoc
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { 
   BarChart, 
@@ -256,45 +269,64 @@ const Dashboard = ({
   onNavigate: (tab: string) => void
 }) => {
   const { t, dir, language } = useTranslation();
-  const totalSales = useMemo(() => sales.reduce((acc, s) => acc + s.total, 0), [sales]);
-  const totalPurchases = useMemo(() => purchases.reduce((acc, p) => acc + p.total, 0), [purchases]);
+  const [dateRange, setDateRange] = useState({
+    start: format(startOfMonth(new Date()), 'yyyy-MM-dd'),
+    end: format(endOfMonth(new Date()), 'yyyy-MM-dd')
+  });
+
+  const filteredSales = useMemo(() => {
+    return sales.filter(s => s.date >= dateRange.start && s.date <= dateRange.end);
+  }, [sales, dateRange]);
+
+  const filteredPurchases = useMemo(() => {
+    return purchases.filter(p => p.date >= dateRange.start && p.date <= dateRange.end);
+  }, [purchases, dateRange]);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => t.date >= dateRange.start && t.date <= dateRange.end);
+  }, [transactions, dateRange]);
+
+  const totalSales = useMemo(() => filteredSales.reduce((acc, s) => acc + s.total, 0), [filteredSales]);
+  const totalPurchases = useMemo(() => filteredPurchases.reduce((acc, p) => acc + p.total, 0), [filteredPurchases]);
   const totalStockValue = useMemo(() => products.reduce((acc, p) => acc + (p.stock * p.cost), 0), [products]);
   const netProfit = useMemo(() => {
-    const income = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-    const expense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+    const income = filteredTransactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
+    const expense = filteredTransactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
     return income - expense;
-  }, [transactions]);
+  }, [filteredTransactions]);
 
   const topCustomers = useMemo(() => {
     const customerSales = customers.map(c => ({
       ...c,
-      totalVolume: sales.filter(s => s.customerId === c.id).reduce((acc, s) => acc + s.total, 0)
+      totalVolume: filteredSales.filter(s => s.customerId === c.id).reduce((acc, s) => acc + s.total, 0)
     })).sort((a, b) => b.totalVolume - a.totalVolume).slice(0, 5);
     return customerSales;
-  }, [customers, sales]);
+  }, [customers, filteredSales]);
 
   const topSuppliers = useMemo(() => {
     const supplierPurchases = suppliers.map(s => ({
       ...s,
-      totalVolume: purchases.filter(p => p.supplierId === s.id).reduce((acc, p) => acc + p.total, 0)
+      totalVolume: filteredPurchases.filter(p => p.supplierId === s.id).reduce((acc, p) => acc + p.total, 0)
     })).sort((a, b) => b.totalVolume - a.totalVolume).slice(0, 5);
     return supplierPurchases;
-  }, [suppliers, purchases]);
+  }, [suppliers, filteredPurchases]);
 
   const salesData = useMemo(() => {
-    const last7Days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - i));
-      return format(d, 'yyyy-MM-dd');
-    });
+    const days = eachDayOfInterval({
+      start: new Date(dateRange.start),
+      end: new Date(dateRange.end)
+    }).slice(-7); // Keep last 7 days of the range for the chart if range is long, or just show the range
 
-    return last7Days.map(date => ({
-      date: format(new Date(date), 'EEE', { locale: language === 'ar' ? ar : enUS }),
-      amount: sales
-        .filter(s => s.date.startsWith(date))
-        .reduce((acc, s) => acc + s.total, 0)
-    }));
-  }, [sales, language]);
+    return days.map(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      return {
+        date: format(day, 'MMM dd', { locale: language === 'ar' ? ar : enUS }),
+        amount: filteredSales
+          .filter(s => s.date.startsWith(dateStr))
+          .reduce((acc, s) => acc + s.total, 0)
+      };
+    });
+  }, [filteredSales, dateRange, language]);
 
   const stockData = useMemo(() => {
     return products
@@ -305,6 +337,26 @@ const Dashboard = ({
 
   return (
     <div className="space-y-8" dir={dir}>
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-white">{t('dashboard')}</h2>
+        <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 dark:bg-slate-800 dark:border-slate-700">
+          <Calendar className="w-4 h-4 text-slate-400" />
+          <input 
+            type="date" 
+            className="bg-transparent border-none text-sm focus:ring-0 dark:text-white"
+            value={dateRange.start}
+            onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+          />
+          <span className="text-slate-300">-</span>
+          <input 
+            type="date" 
+            className="bg-transparent border-none text-sm focus:ring-0 dark:text-white"
+            value={dateRange.end}
+            onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card className="p-6 cursor-pointer hover:shadow-md transition-all" onClick={() => onNavigate('sales')}>
           <div className="flex items-center justify-between">
@@ -458,6 +510,18 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
   const [cart, setCart] = useState<{ product: Product, quantity: number }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch) return customers;
+    return customers.filter(c => 
+      c.name.toLowerCase().includes(customerSearch.toLowerCase()) || 
+      c.phone.includes(customerSearch)
+    );
+  }, [customers, customerSearch]);
+
+  const selectedCustomer = useMemo(() => customers.find(c => c.id === selectedCustomerId), [customers, selectedCustomerId]);
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'card' | 'other'>('cash');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
@@ -752,17 +816,61 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
           </div>
 
           <div className="space-y-4 mb-6">
-            <div className="flex gap-2">
-              <select
-                className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white"
-                value={selectedCustomerId}
-                onChange={(e) => setSelectedCustomerId(e.target.value)}
-              >
-                <option value="">{t('walkIn')}</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
+            <div className="flex gap-2 relative">
+              <div className="flex-1 relative">
+                <div 
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-white cursor-pointer flex justify-between items-center"
+                  onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
+                >
+                  <span className={selectedCustomer ? "text-slate-900 dark:text-white font-medium" : "text-slate-400"}>
+                    {selectedCustomer ? selectedCustomer.name : t('walkIn')}
+                  </span>
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                </div>
+
+                {isCustomerDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden">
+                    <div className="p-2 border-b border-slate-100 dark:border-slate-700">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input 
+                          autoFocus
+                          placeholder={t('searchCustomer')}
+                          className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-900 border-none rounded-lg text-sm focus:ring-2 focus:ring-indigo-500"
+                          value={customerSearch}
+                          onChange={(e) => setCustomerSearch(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-60 overflow-y-auto">
+                      <button 
+                        className="w-full px-4 py-2.5 text-right hover:bg-slate-50 dark:hover:bg-slate-700 text-sm border-b border-slate-50 dark:border-slate-700"
+                        onClick={() => {
+                          setSelectedCustomerId('');
+                          setIsCustomerDropdownOpen(false);
+                          setCustomerSearch('');
+                        }}
+                      >
+                        {t('walkIn')}
+                      </button>
+                      {filteredCustomers.map(c => (
+                        <button 
+                          key={c.id}
+                          className="w-full px-4 py-2.5 text-right hover:bg-slate-50 dark:hover:bg-slate-700 text-sm flex flex-col"
+                          onClick={() => {
+                            setSelectedCustomerId(c.id!);
+                            setIsCustomerDropdownOpen(false);
+                            setCustomerSearch('');
+                          }}
+                        >
+                          <span className="font-medium text-slate-900 dark:text-white">{c.name}</span>
+                          <span className="text-[10px] text-slate-500">{c.phone}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               <Button variant="outline" size="sm" onClick={() => setIsCustomerModalOpen(true)}>
                 <Plus className="w-4 h-4" />
               </Button>
@@ -2749,13 +2857,29 @@ const StocktakingModule = ({ products, warehouses, canDo, showToast, confirm, cu
   const [selectedWarehouseId, setSelectedWarehouseId] = useState('');
   const [counts, setCounts] = useState<{ [productId: string]: { left: number, right: number } }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedBrand, setSelectedBrand] = useState('');
+  const [selectedColor, setSelectedColor] = useState('');
+  const [selectedSize, setSelectedSize] = useState('');
 
   const isAdmin = currentUserProfile?.role === 'admin';
 
-  const warehouseProducts = useMemo(() => {
+  const brands = useMemo(() => Array.from(new Set(products.map(p => p.brand).filter(Boolean))), [products]);
+  const colors = useMemo(() => Array.from(new Set(products.map(p => p.color).filter(Boolean))), [products]);
+  const sizes = useMemo(() => Array.from(new Set(products.map(p => p.size).filter(Boolean))), [products]);
+
+  const filteredProducts = useMemo(() => {
     if (!selectedWarehouseId) return [];
-    return products.filter(p => p.warehouseId === selectedWarehouseId);
-  }, [products, selectedWarehouseId]);
+    return products.filter(p => {
+      const matchesWarehouse = p.warehouseId === selectedWarehouseId;
+      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.sku.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesBrand = !selectedBrand || p.brand === selectedBrand;
+      const matchesColor = !selectedColor || p.color === selectedColor;
+      const matchesSize = !selectedSize || p.size === selectedSize;
+      return matchesWarehouse && matchesSearch && matchesBrand && matchesColor && matchesSize;
+    });
+  }, [products, selectedWarehouseId, searchQuery, selectedBrand, selectedColor, selectedSize]);
 
   const handleCountChange = (productId: string, side: 'left' | 'right', value: number) => {
     const safeValue = isNaN(value) ? 0 : value;
@@ -2824,7 +2948,7 @@ const StocktakingModule = ({ products, warehouses, canDo, showToast, confirm, cu
       </div>
 
       <Card className="p-6 dark:bg-slate-900 dark:border-slate-800">
-        <div className="max-w-md space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('selectWarehouseForStocktaking')}</label>
             <select 
@@ -2839,6 +2963,47 @@ const StocktakingModule = ({ products, warehouses, canDo, showToast, confirm, cu
               {warehouses.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
             </select>
           </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('search')}</label>
+            <Input 
+              placeholder={t('searchProduct')} 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('brand')}</label>
+            <select 
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+              value={selectedBrand}
+              onChange={(e) => setSelectedBrand(e.target.value)}
+            >
+              <option value="">{t('allBrands') || 'All Brands'}</option>
+              {brands.map(b => <option key={b} value={b}>{b}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('color')}</label>
+            <select 
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+              value={selectedColor}
+              onChange={(e) => setSelectedColor(e.target.value)}
+            >
+              <option value="">{t('allColors') || 'All Colors'}</option>
+              {colors.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('size')}</label>
+            <select 
+              className="flex h-10 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-slate-900 dark:border-slate-700 dark:text-white"
+              value={selectedSize}
+              onChange={(e) => setSelectedSize(e.target.value)}
+            >
+              <option value="">{t('allSizes') || 'All Sizes'}</option>
+              {sizes.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
       </Card>
 
@@ -2849,13 +3014,14 @@ const StocktakingModule = ({ products, warehouses, canDo, showToast, confirm, cu
               <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
                 <tr>
                   <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('product')}</th>
+                  <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('productAccounts') || 'Product Accounts'}</th>
                   <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('stockLeft')}</th>
                   <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('stockRight')}</th>
                   <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('difference')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {warehouseProducts.map((product) => {
+                {filteredProducts.map((product) => {
                   const currentCount = counts[product.id!] || { left: product.stockLeft, right: product.stockRight };
                   const diffLeft = currentCount.left - product.stockLeft;
                   const diffRight = currentCount.right - product.stockRight;
@@ -2865,6 +3031,27 @@ const StocktakingModule = ({ products, warehouses, canDo, showToast, confirm, cu
                       <td className="px-6 py-4">
                         <div className="text-sm font-medium text-slate-900 dark:text-white">{product.name}</div>
                         <div className="text-xs text-slate-500">{product.sku}</div>
+                        <div className="text-[10px] text-slate-400 flex gap-2">
+                          <span>{product.brand}</span>
+                          <span>{product.color}</span>
+                          <span>{product.size}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-xs space-y-1">
+                          <div className="flex justify-between gap-4">
+                            <span className="text-slate-500">{t('cost')}:</span>
+                            <span className="font-medium">{product.cost} {t('egp')}</span>
+                          </div>
+                          <div className="flex justify-between gap-4">
+                            <span className="text-slate-500">{t('price')}:</span>
+                            <span className="font-medium">{product.price} {t('egp')}</span>
+                          </div>
+                          <div className="flex justify-between gap-4 border-t border-slate-100 pt-1 dark:border-slate-800">
+                            <span className="text-slate-500">{t('stockValue')}:</span>
+                            <span className="font-bold text-indigo-600 dark:text-indigo-400">{(product.stock * product.cost).toLocaleString()} {t('egp')}</span>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
@@ -2911,7 +3098,7 @@ const StocktakingModule = ({ products, warehouses, canDo, showToast, confirm, cu
             {isAdmin && (
               <Button 
                 onClick={handleSubmit} 
-                disabled={isSubmitting || warehouseProducts.length === 0}
+                disabled={isSubmitting || filteredProducts.length === 0}
                 className="px-8 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600"
               >
                 {isSubmitting ? t('saving') : t('saveStocktakingResults')}
@@ -3154,6 +3341,15 @@ const ReturnsModule = ({ returns, sales, products, customers, canDo, showToast, 
 
   const selectedSale = useMemo(() => sales.find(s => s.id === selectedSaleId), [sales, selectedSaleId]);
 
+  const totalRefundPreview = useMemo(() => {
+    if (!selectedSale) return 0;
+    return returnItems.reduce((acc, item) => {
+      const saleItem = selectedSale.items.find(si => si.productId === item.productId);
+      if (!saleItem) return acc;
+      return acc + ((item.quantityLeft + item.quantityRight) / 2) * saleItem.price;
+    }, 0);
+  }, [selectedSale, returnItems]);
+
   const handleSaleSelect = (saleId: string) => {
     setSelectedSaleId(saleId);
     const sale = sales.find(s => s.id === saleId);
@@ -3169,37 +3365,54 @@ const ReturnsModule = ({ returns, sales, products, customers, canDo, showToast, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedSaleId || returnItems.every(i => i.quantityLeft === 0 && i.quantityRight === 0)) return;
+    if (!selectedSaleId || !selectedSale || returnItems.every(i => i.quantityLeft === 0 && i.quantityRight === 0)) return;
 
     try {
       const batch = writeBatch(db);
       const timestamp = new Date().toISOString();
       let totalRefund = 0;
 
+      const updatedSaleItems = [...selectedSale.items];
+
       returnItems.forEach(item => {
         if (item.quantityLeft === 0 && item.quantityRight === 0) return;
         
-        const saleItem = selectedSale?.items.find(si => si.productId === item.productId);
-        if (saleItem) {
-          totalRefund += (item.quantityLeft + item.quantityRight) * saleItem.price;
+        const saleItemIdx = updatedSaleItems.findIndex(si => si.productId === item.productId);
+        if (saleItemIdx !== -1) {
+          const saleItem = updatedSaleItems[saleItemIdx];
+          // Calculate refund: (L + R) / 2 * price (since price is per carton/pair)
+          const itemRefund = ((item.quantityLeft + item.quantityRight) / 2) * saleItem.price;
+          totalRefund += itemRefund;
           
+          // Update sale item remaining quantities
+          updatedSaleItems[saleItemIdx] = {
+            ...saleItem,
+            quantityLeft: saleItem.quantityLeft - item.quantityLeft,
+            quantityRight: saleItem.quantityRight - item.quantityRight,
+          };
+
           // Update product stock
           const product = products.find(p => p.id === item.productId);
           if (product) {
             const productRef = doc(db, 'products', product.id!);
             batch.update(productRef, {
-              stockLeft: product.stockLeft + item.quantityLeft,
-              stockRight: product.stockRight + item.quantityRight,
-              stock: product.stock + (item.quantityLeft + item.quantityRight)
+              stockLeft: increment(item.quantityLeft),
+              stockRight: increment(item.quantityRight),
+              stock: increment(item.quantityLeft + item.quantityRight)
             });
           }
         }
       });
 
+      // Update the Sale document
+      const saleRef = doc(db, 'sales', selectedSaleId);
+      batch.update(saleRef, { items: updatedSaleItems });
+
       const returnRef = doc(collection(db, 'returns'));
       batch.set(returnRef, {
         date: timestamp,
         saleId: selectedSaleId,
+        customerId: selectedSale?.customerId || '',
         items: returnItems.filter(i => i.quantityLeft > 0 || i.quantityRight > 0),
         totalRefund,
         status: 'completed'
@@ -3209,10 +3422,11 @@ const ReturnsModule = ({ returns, sales, products, customers, canDo, showToast, 
       const transRef = doc(collection(db, 'transactions'));
       batch.set(transRef, {
         date: timestamp,
-        description: `${t('returnInvoice')} #${selectedSaleId.slice(-6)}`,
+        description: `${t('returnInvoice')} #${selectedSale.invoiceNumber}`,
         type: 'expense',
         amount: totalRefund,
-        category: t('returns')
+        category: t('returns'),
+        referenceId: returnRef.id
       });
 
       await batch.commit();
@@ -3357,6 +3571,11 @@ const ReturnsModule = ({ returns, sales, products, customers, canDo, showToast, 
                   </div>
                 );
               })}
+
+              <div className="p-4 bg-indigo-50 rounded-lg dark:bg-indigo-900/20 flex justify-between items-center">
+                <span className="font-bold text-indigo-900 dark:text-indigo-100">{t('totalRefund')}</span>
+                <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{totalRefundPreview.toLocaleString()} {t('egp')}</span>
+              </div>
             </div>
           )}
 
@@ -3367,7 +3586,7 @@ const ReturnsModule = ({ returns, sales, products, customers, canDo, showToast, 
   );
 };
 
-const CustomersModule = ({ customers, sales, canDo, showToast, confirm }: { customers: Customer[], sales: Sale[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean, showToast: (m: string, t?: 'success' | 'error') => void, confirm: (title: string, message: string, onConfirm: () => void) => void }) => {
+const CustomersModule = ({ customers, sales, returns, canDo, showToast, confirm }: { customers: Customer[], sales: Sale[], returns: Return[], canDo: (s: string, a: 'canAdd' | 'canEdit' | 'canDelete') => boolean, showToast: (m: string, t?: 'success' | 'error') => void, confirm: (title: string, message: string, onConfirm: () => void) => void }) => {
   const { t, dir, language } = useTranslation();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -3381,9 +3600,10 @@ const CustomersModule = ({ customers, sales, canDo, showToast, confirm }: { cust
     ).map(c => ({
       ...c,
       totalVolume: sales.filter(s => s.customerId === c.id).reduce((acc, s) => acc + s.total, 0),
-      salesCount: sales.filter(s => s.customerId === c.id).length
+      salesCount: sales.filter(s => s.customerId === c.id).length,
+      returnsCount: returns.filter(r => r.customerId === c.id).length
     }));
-  }, [customers, searchQuery, sales]);
+  }, [customers, searchQuery, sales, returns]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -3435,8 +3655,9 @@ const CustomersModule = ({ customers, sales, canDo, showToast, confirm }: { cust
             <thead className="bg-slate-50 border-b border-slate-200 dark:bg-slate-900 dark:border-slate-800">
               <tr>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('name')}</th>
-                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('email')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('phone')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('sales')}</th>
+                <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('returns')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('totalVolume')}</th>
                 <th className="px-6 py-4 text-sm font-semibold text-slate-600 dark:text-slate-400">{t('actions')}</th>
               </tr>
@@ -3444,9 +3665,13 @@ const CustomersModule = ({ customers, sales, canDo, showToast, confirm }: { cust
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {filteredCustomers.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50 transition-colors dark:hover:bg-slate-900/50">
-                  <td className="px-6 py-4 text-sm font-medium text-slate-900 dark:text-white">{c.name}</td>
-                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{c.email || '-'}</td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-slate-900 dark:text-white">{c.name}</div>
+                    <div className="text-xs text-slate-500">{c.email || '-'}</div>
+                  </td>
                   <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{c.phone || '-'}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{c.salesCount}</td>
+                  <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{c.returnsCount}</td>
                   <td className="px-6 py-4 text-sm font-bold text-indigo-600 dark:text-indigo-400">{c.totalVolume.toLocaleString()} {t('egp')}</td>
                   <td className="px-6 py-4 text-sm">
                     <div className="flex items-center gap-2">
@@ -3514,7 +3739,7 @@ const CustomersModule = ({ customers, sales, canDo, showToast, confirm }: { cust
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <Card className="p-4 bg-indigo-50/30 border-indigo-100 dark:bg-indigo-900/10 dark:border-indigo-900/30">
                 <p className="text-xs text-slate-500 mb-1">{t('totalVolume')}</p>
                 <p className="text-lg font-bold text-indigo-600 dark:text-indigo-400">{(selectedCustomer as any).totalVolume.toLocaleString()} {t('egp')}</p>
@@ -3523,6 +3748,34 @@ const CustomersModule = ({ customers, sales, canDo, showToast, confirm }: { cust
                 <p className="text-xs text-slate-500 mb-1">{t('salesCount')}</p>
                 <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{(selectedCustomer as any).salesCount}</p>
               </Card>
+              <Card className="p-4 bg-red-50/30 border-red-100 dark:bg-red-900/10 dark:border-red-900/30">
+                <p className="text-xs text-slate-500 mb-1">{t('returns')}</p>
+                <p className="text-lg font-bold text-red-600 dark:text-red-400">{(selectedCustomer as any).returnsCount}</p>
+              </Card>
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-bold text-slate-900 dark:text-white">{t('recentTransactions')}</h4>
+              <div className="max-h-60 overflow-y-auto space-y-2">
+                {sales.filter(s => s.customerId === selectedCustomer.id).map(s => (
+                  <div key={s.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl dark:bg-slate-800/50">
+                    <div>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white">{t('sale')} #{s.id.slice(-6)}</p>
+                      <p className="text-xs text-slate-500">{format(new Date(s.date), 'yyyy-MM-dd HH:mm')}</p>
+                    </div>
+                    <p className="text-sm font-bold text-emerald-600">+{s.total.toLocaleString()} {t('egp')}</p>
+                  </div>
+                ))}
+                {returns.filter(r => r.customerId === selectedCustomer.id).map(r => (
+                  <div key={r.id} className="flex items-center justify-between p-3 bg-red-50 rounded-xl dark:bg-red-900/10">
+                    <div>
+                      <p className="text-sm font-medium text-red-900 dark:text-red-400">{t('return')} #{r.id?.slice(-6)}</p>
+                      <p className="text-xs text-red-500/60">{format(new Date(r.date), 'yyyy-MM-dd HH:mm')}</p>
+                    </div>
+                    <p className="text-sm font-bold text-red-600">-{r.totalRefund.toLocaleString()} {t('egp')}</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -4388,7 +4641,7 @@ export default function App() {
           });
         }
       } catch (err) {
-        console.error("Error ensuring user profile:", err);
+        handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
       }
     };
     
@@ -4455,7 +4708,7 @@ export default function App() {
       setDoc(doc(db, 'users', user.uid), {
         email: user.email,
         role: 'admin',
-        displayName: user.displayName,
+        displayName: user.displayName || '',
         isActive: true
       }).catch(err => console.error("Error creating initial admin:", err));
     }
@@ -4759,7 +5012,7 @@ export default function App() {
               {activeTab === 'sales' && <SalesModule sales={sales} customers={customers} products={products} settings={settings} canDo={canDo} showToast={showToast} confirm={confirm} />}
               {activeTab === 'returns' && <ReturnsModule returns={returns} sales={sales} products={products} customers={customers} canDo={canDo} showToast={showToast} confirm={confirm} />}
               {activeTab === 'accounting' && <AccountingModule transactions={transactions} sales={sales} purchases={purchases} canDo={canDo} showToast={showToast} confirm={confirm} />}
-              {activeTab === 'customers' && <CustomersModule customers={customers} sales={sales} canDo={canDo} showToast={showToast} confirm={confirm} />}
+              {activeTab === 'customers' && <CustomersModule customers={customers} sales={sales} returns={returns} canDo={canDo} showToast={showToast} confirm={confirm} />}
               {activeTab === 'suppliers' && <SuppliersModule suppliers={suppliers} purchases={purchases} canDo={canDo} showToast={showToast} confirm={confirm} />}
               {activeTab === 'categories' && <CategoriesModule categories={categories} canDo={canDo} showToast={showToast} confirm={confirm} />}
               {activeTab === 'settings' && <SettingsModule settings={settings} users={users} currentUserProfile={currentUserProfile} showToast={showToast} confirm={confirm} />}
