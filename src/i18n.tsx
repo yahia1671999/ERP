@@ -321,6 +321,9 @@ export const translations: Translations = {
   importError: { ar: 'حدث خطأ أثناء استيراد البيانات', en: 'Error importing data' },
   noValidDataFound: { ar: 'لم يتم العثور على بيانات صالحة في الملف', en: 'No valid data found in the file' },
   selectExcelFile: { ar: 'اختر ملف Excel', en: 'Select Excel File' },
+  noMoreStock: { ar: 'لا يوجد كمية كافية في المخزون', en: 'No more stock available' },
+  insufficientStockFor: { ar: 'كمية غير كافية للمنتج:', en: 'Insufficient stock for:' },
+  pairs: { ar: 'أزواج', en: 'Pairs' },
 };
 
 interface LanguageContextType {

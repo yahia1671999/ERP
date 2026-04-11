@@ -562,9 +562,11 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
   }, [searchQuery, products]);
 
   const filteredProducts = useMemo(() => {
+    // Filter out products with no stock (pairs)
+    const availableProducts = products.filter(p => Math.min(p.stockLeft, p.stockRight) > 0);
     if (!searchQuery) return [];
     const query = searchQuery.toLowerCase();
-    return products.filter(p => 
+    return availableProducts.filter(p => 
       p.name.toLowerCase().includes(query) || 
       p.sku.toLowerCase().includes(query) ||
       (p.barcode && p.barcode.toLowerCase().includes(query))
@@ -572,9 +574,19 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
   }, [products, searchQuery]);
 
   const addToCart = (product: Product) => {
+    const availablePairs = Math.min(product.stockLeft, product.stockRight);
+    if (availablePairs <= 0) {
+      showToast(t('outOfStock'), 'error');
+      return;
+    }
+
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
+        if (existing.quantity >= availablePairs) {
+          showToast(t('noMoreStock'), 'error');
+          return prev;
+        }
         return prev.map(item => 
           item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
@@ -591,7 +603,12 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
   const updateQuantity = (productId: string, delta: number) => {
     setCart(prev => prev.map(item => {
       if (item.product.id === productId) {
+        const availablePairs = Math.min(item.product.stockLeft, item.product.stockRight);
         const newQty = Math.max(1, item.quantity + delta);
+        if (newQty > availablePairs) {
+          showToast(t('noMoreStock'), 'error');
+          return item;
+        }
         return { ...item, quantity: newQty };
       }
       return item;
@@ -605,6 +622,15 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
     if (!canDo('sales', 'canAdd')) {
       showToast(t('permissionDenied'), 'error');
       return;
+    }
+
+    // Double check stock before processing
+    for (const item of cart) {
+      const availablePairs = Math.min(item.product.stockLeft, item.product.stockRight);
+      if (item.quantity > availablePairs) {
+        showToast(`${t('insufficientStockFor')} ${item.product.name}`, 'error');
+        return;
+      }
     }
 
     setIsProcessing(true);
@@ -638,7 +664,7 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
         batch.update(productRef, {
           stockLeft: increment(-item.quantity),
           stockRight: increment(-item.quantity),
-          stock: increment(-(item.quantity * 2))
+          stock: increment(-item.quantity) // stock field now represents pairs
         });
       }
 
@@ -1128,7 +1154,7 @@ const InventoryModule = ({ products, warehouses, categories, canDo, showToast, c
             warehouseId: warehouses[0]?.id || 'default',
           };
           
-          productData.stock = productData.stockLeft + productData.stockRight;
+          productData.stock = Math.min(productData.stockLeft, productData.stockRight);
 
           const existing = products.find(p => p.sku === sku);
           if (existing) {
@@ -1218,7 +1244,7 @@ const InventoryModule = ({ products, warehouses, categories, canDo, showToast, c
       cost: Number(formData.get('cost')),
       stockLeft: Number(formData.get('stockLeft')),
       stockRight: Number(formData.get('stockRight')),
-      stock: Number(formData.get('stockLeft')) + Number(formData.get('stockRight')),
+      stock: Math.min(Number(formData.get('stockLeft')), Number(formData.get('stockRight'))),
       unit: formData.get('unit') as string,
       warehouseId: formData.get('warehouseId') as string,
       barcode: formData.get('barcode') as string,
@@ -1327,6 +1353,11 @@ const InventoryModule = ({ products, warehouses, categories, canDo, showToast, c
                   <td className="px-6 py-4 text-sm text-slate-900 dark:text-white">{product.price.toLocaleString()} {t('egp')}</td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col gap-1">
+                      <span className={cn(
+                        'px-2.5 py-1 rounded-full text-[10px] font-medium w-fit bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+                      )}>
+                        {t('pairs')}: {product.stock}
+                      </span>
                       <span className={cn(
                         'px-2.5 py-1 rounded-full text-[10px] font-medium w-fit',
                         product.stockLeft < 5 ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
@@ -1669,6 +1700,8 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo, sh
         items: items.map(item => ({
           productId: item.productId,
           quantity: item.quantity,
+          quantityLeft: item.quantity,
+          quantityRight: item.quantity,
           cost: item.cost,
           discount: item.discount,
           unitType: item.unitType
@@ -1710,7 +1743,7 @@ const PurchasesModule = ({ purchases, suppliers, products, warehouses, canDo, sh
         
         updateData.stockLeft = increment(stockAddition);
         updateData.stockRight = increment(stockAddition);
-        updateData.stock = increment(stockAddition * 2);
+        updateData.stock = increment(stockAddition);
         
         const productRef = doc(db, 'products', item.productId);
         batch.update(productRef, updateData);
@@ -2212,6 +2245,8 @@ const SalesModule = ({ sales, customers, products, settings, canDo, showToast, c
       items: items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
+        quantityLeft: item.quantity,
+        quantityRight: item.quantity,
         price: item.price,
         unitType: item.unitType
       })),
@@ -2234,7 +2269,11 @@ const SalesModule = ({ sales, customers, products, settings, canDo, showToast, c
         }
         
         const productRef = doc(db, 'products', item.productId);
-        batch.update(productRef, { stock: increment(-stockDeduction) });
+        batch.update(productRef, { 
+          stockLeft: increment(-stockDeduction),
+          stockRight: increment(-stockDeduction),
+          stock: increment(-stockDeduction) 
+        });
       });
 
       const transRef = doc(collection(db, 'transactions'));
@@ -3334,7 +3373,7 @@ const WarehouseTransferModule = ({ products, warehouses, transfers, canDo, showT
       batch.update(sourceProductRef, {
         stockLeft: product.stockLeft - quantityLeft,
         stockRight: product.stockRight - quantityRight,
-        stock: product.stock - (quantityLeft + quantityRight)
+        stock: Math.min(product.stockLeft - quantityLeft, product.stockRight - quantityRight)
       });
 
       // Find or create destination product
@@ -3344,7 +3383,7 @@ const WarehouseTransferModule = ({ products, warehouses, transfers, canDo, showT
         batch.update(destProductRef, {
           stockLeft: increment(quantityLeft),
           stockRight: increment(quantityRight),
-          stock: increment(quantityLeft + quantityRight)
+          stock: increment(Math.min(quantityLeft, quantityRight))
         });
       } else {
         const newProductRef = doc(collection(db, 'products'));
@@ -3354,7 +3393,7 @@ const WarehouseTransferModule = ({ products, warehouses, transfers, canDo, showT
           warehouseId: selectedToWarehouse,
           stockLeft: quantityLeft,
           stockRight: quantityRight,
-          stock: quantityLeft + quantityRight
+          stock: Math.min(quantityLeft, quantityRight)
         });
       }
 
@@ -3592,10 +3631,12 @@ const ReturnsModule = ({ returns, sales, purchases, products, customers, supplie
             const productRef = doc(db, 'products', product.id!);
             // Increase stock for sales return, decrease for purchase return
             const stockChange = returnType === 'sale' ? 1 : -1;
+            // Since it's a pair, we use the average or just assume balance is maintained
+            const pairs = (item.quantityLeft + item.quantityRight) / 2;
             batch.update(productRef, {
               stockLeft: increment(item.quantityLeft * stockChange),
               stockRight: increment(item.quantityRight * stockChange),
-              stock: increment((item.quantityLeft + item.quantityRight) * stockChange)
+              stock: increment(pairs * stockChange)
             });
           }
         }
