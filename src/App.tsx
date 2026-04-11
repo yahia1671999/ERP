@@ -79,6 +79,7 @@ import {
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { format, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
+import * as XLSX from 'xlsx';
 import { 
   BarChart, 
   Bar, 
@@ -97,7 +98,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
 import { auth, db, storage, handleFirestoreError, OperationType } from './firebase';
-import { useTranslation, LanguageContext } from './i18n';
+import { useTranslation, LanguageContext, translations } from './i18n';
 import { 
   Product, 
   Warehouse,
@@ -1054,7 +1055,107 @@ const InventoryModule = ({ products, warehouses, categories, canDo, showToast, c
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedUnit, setSelectedUnit] = useState<string>('');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const UNITS = getUnits(t);
+
+  const handleExport = () => {
+    const exportData = products.map(p => ({
+      [t('productName')]: p.name,
+      [t('sku')]: p.sku,
+      [t('category')]: p.category,
+      [t('subCategory')]: p.subCategory || '',
+      [t('brand')]: p.brand || '',
+      [t('color')]: p.color || '',
+      [t('size')]: p.size || '',
+      [t('price')]: p.price,
+      [t('cost')]: p.cost,
+      [t('stockLeft')]: p.stockLeft,
+      [t('stockRight')]: p.stockRight,
+      [t('stock')]: p.stock,
+      [t('unit')]: p.unit,
+      [t('barcode')]: p.barcode || '',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, t('inventory'));
+    XLSX.writeFile(wb, `inventory_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data = XLSX.utils.sheet_to_json(ws) as any[];
+
+        const batch = writeBatch(db);
+        
+        // Helper to get value by checking multiple possible header translations
+        const getValue = (row: any, key: string) => {
+          const arHeader = translations[key]?.ar;
+          const enHeader = translations[key]?.en;
+          return row[arHeader] ?? row[enHeader] ?? row[key] ?? '';
+        };
+
+        let count = 0;
+        for (const row of data) {
+          const name = String(getValue(row, 'productName') || '').trim().substring(0, 490);
+          const sku = String(getValue(row, 'sku') || '').trim().substring(0, 45);
+          
+          if (!name || !sku) continue;
+
+          const productData: any = {
+            name,
+            sku,
+            category: String(getValue(row, 'category') || '').trim(),
+            subCategory: String(getValue(row, 'subCategory') || '').trim(),
+            brand: String(getValue(row, 'brand') || '').trim(),
+            color: String(getValue(row, 'color') || '').trim(),
+            size: String(getValue(row, 'size') || '').trim(),
+            price: Math.max(0, Number(getValue(row, 'price')) || 0),
+            cost: Math.max(0, Number(getValue(row, 'cost')) || 0),
+            stockLeft: Number(getValue(row, 'stockLeft')) || 0,
+            stockRight: Number(getValue(row, 'stockRight')) || 0,
+            unit: String(getValue(row, 'unit') || t('piece')).trim(),
+            barcode: String(getValue(row, 'barcode') || '').trim(),
+            warehouseId: warehouses[0]?.id || 'default',
+          };
+          
+          productData.stock = productData.stockLeft + productData.stockRight;
+
+          const existing = products.find(p => p.sku === sku);
+          if (existing) {
+            batch.set(doc(db, 'products', existing.id!), productData, { merge: true });
+          } else {
+            const newRef = doc(collection(db, 'products'));
+            batch.set(newRef, productData);
+          }
+          count++;
+          
+          // Firestore batch limit is 500
+          if (count >= 490) break; 
+        }
+
+        if (count > 0) {
+          await batch.commit();
+          showToast(t('importSuccess'), 'success');
+        } else {
+          showToast(t('noValidDataFound'), 'error');
+        }
+        setIsImportModalOpen(false);
+      } catch (err) {
+        handleFirestoreError(err, OperationType.WRITE, 'products/batch-import');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   useEffect(() => {
     if (editingProduct) {
@@ -1066,8 +1167,10 @@ const InventoryModule = ({ products, warehouses, categories, canDo, showToast, c
 
   const filteredProducts = useMemo(() => {
     return products.filter(p => {
-      const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        p.sku.toLowerCase().includes(searchQuery.toLowerCase());
+      const name = String(p.name || '');
+      const sku = String(p.sku || '');
+      const matchesSearch = name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        sku.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
       return matchesSearch && matchesCategory;
     });
@@ -1164,10 +1267,20 @@ const InventoryModule = ({ products, warehouses, categories, canDo, showToast, c
             {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
           </select>
           {canDo('inventory', 'canAdd') && (
-            <Button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}>
-              <Plus className={cn("w-4 h-4", language === 'ar' ? 'ml-2' : 'mr-2')} />
-              {t('addProduct')}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleExport}>
+                <Download className={cn("w-4 h-4", language === 'ar' ? 'ml-2' : 'mr-2')} />
+                {t('exportToExcel')}
+              </Button>
+              <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
+                <Upload className={cn("w-4 h-4", language === 'ar' ? 'ml-2' : 'mr-2')} />
+                {t('importFromExcel')}
+              </Button>
+              <Button onClick={() => { setEditingProduct(null); setIsModalOpen(true); }}>
+                <Plus className={cn("w-4 h-4", language === 'ar' ? 'ml-2' : 'mr-2')} />
+                {t('addProduct')}
+              </Button>
+            </div>
           )}
         </div>
       </div>
@@ -1398,6 +1511,24 @@ const InventoryModule = ({ products, warehouses, categories, canDo, showToast, c
             <Button type="submit" className="w-full">{t('saveProduct')}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} title={t('importFromExcel')}>
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {t('selectExcelFile')}
+          </p>
+          <Input 
+            type="file" 
+            accept=".xlsx, .xls" 
+            onChange={handleImport}
+          />
+          <div className="pt-4">
+            <Button variant="outline" className="w-full" onClick={() => setIsImportModalOpen(false)}>
+              {t('cancel')}
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );
@@ -4831,11 +4962,14 @@ export default function App() {
   useEffect(() => {
     if (user && isUsersLoaded && users.length === 0) {
       setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
         email: user.email,
         role: 'admin',
         displayName: user.displayName || '',
-        isActive: true
-      }).catch(err => console.error("Error creating initial admin:", err));
+        isActive: true,
+        allowedScreens: [],
+        permissions: {}
+      }).catch(err => handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`));
     }
   }, [user, isUsersLoaded, users.length]);
 

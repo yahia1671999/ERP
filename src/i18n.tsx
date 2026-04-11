@@ -315,6 +315,12 @@ export const translations: Translations = {
   password: { ar: 'كلمة المرور', en: 'Password' },
   unlock: { ar: 'فتح القسم', en: 'Unlock' },
   invalidCredentials: { ar: 'بيانات الدخول غير صحيحة', en: 'Invalid credentials' },
+  exportToExcel: { ar: 'تصدير إلى Excel', en: 'Export to Excel' },
+  importFromExcel: { ar: 'استيراد من Excel', en: 'Import from Excel' },
+  importSuccess: { ar: 'تم استيراد البيانات بنجاح', en: 'Data imported successfully' },
+  importError: { ar: 'حدث خطأ أثناء استيراد البيانات', en: 'Error importing data' },
+  noValidDataFound: { ar: 'لم يتم العثور على بيانات صالحة في الملف', en: 'No valid data found in the file' },
+  selectExcelFile: { ar: 'اختر ملف Excel', en: 'Select Excel File' },
 };
 
 interface LanguageContextType {

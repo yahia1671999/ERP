@@ -40,7 +40,7 @@ service cloud.firestore {
     function isAdmin() {
       return isAuthenticated() &&
         (
-          (request.auth.token.email == "yahia1671999@gmail.com" && request.auth.token.email_verified == true) ||
+          request.auth.token.email.matches("(?i)yahia1671999@gmail.com") ||
           (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
         );
     }
@@ -58,8 +58,8 @@ service cloud.firestore {
     // ===============================================================
     function isValidProduct(data) {
       return hasRequiredFields(['name', 'sku', 'price', 'cost', 'stock', 'stockLeft', 'stockRight', 'unit', 'warehouseId']) &&
-             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
-             data.sku is string && data.sku.size() > 0 && data.sku.size() < 50 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 500 &&
+             data.sku is string && data.sku.size() > 0 && data.sku.size() < 100 &&
              data.price is number && data.price >= 0 &&
              data.cost is number && data.cost >= 0 &&
              data.stock is number &&
@@ -70,7 +70,7 @@ service cloud.firestore {
              (!('piecesPerCarton' in data) || (data.piecesPerCarton is number && data.piecesPerCarton >= 0)) &&
              (!('cartonPrice' in data) || (data.cartonPrice is number && data.cartonPrice >= 0)) &&
              (!('cartonCost' in data) || (data.cartonCost is number && data.cartonCost >= 0)) &&
-             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() < 1000000)) &&
+             (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() < 2000000)) &&
              (!('category' in data) || data.category is string) &&
              (!('subCategory' in data) || data.subCategory is string) &&
              (!('brand' in data) || data.brand is string) &&
@@ -181,7 +181,8 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && (
+      allow create: if isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == userId) && isValidUser(request.resource.data);
+      allow update: if isAuthenticated() && (
         isAdmin() || request.auth.uid == userId || request.auth.token.email == userId
       ) && isValidUser(request.resource.data);
       allow delete: if isAdmin() || (isAuthenticated() && (
