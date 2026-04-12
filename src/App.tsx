@@ -619,7 +619,7 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
-    if (!canDo('sales', 'canAdd')) {
+    if (!canDo('cashier', 'canAdd') && !canDo('sales', 'canAdd')) {
       showToast(t('permissionDenied'), 'error');
       return;
     }
@@ -694,7 +694,7 @@ const CashierModule = ({ products, customers, sales, settings, canDo, showToast,
 
   const handleAddCustomer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!canDo('customers', 'canAdd')) {
+    if (!canDo('cashier', 'canAdd') && !canDo('customers', 'canAdd')) {
       showToast(t('permissionDenied'), 'error');
       return;
     }
