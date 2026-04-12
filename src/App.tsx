@@ -4914,8 +4914,16 @@ export default function App() {
             // Found a profile created by admin
             const existingDoc = querySnap.docs[0];
             const data = existingDoc.data();
-            // Create new doc with UID as ID
-            await setDoc(userRef, { ...data, uid: user.uid });
+            // Create new doc with UID as ID, ensuring all required fields exist
+            await setDoc(userRef, {
+              role: 'user',
+              isActive: false,
+              allowedScreens: [],
+              permissions: {},
+              ...data,
+              uid: user.uid,
+              email: user.email // Ensure email is correct
+            });
             // Delete old doc if it's not the same as the new one
             if (existingDoc.id !== user.uid) {
               await deleteDoc(existingDoc.ref);
@@ -4997,10 +5005,25 @@ export default function App() {
       }
     }, (err) => handleFirestoreError(err, OperationType.GET, 'settings/system'));
 
-    const unsubUsers = onSnapshot(query(collection(db, 'users')), (snap) => {
+    // For users, if admin, listen to all. If not, listen only to self.
+    const usersQuery = isPrimaryAdmin ? query(collection(db, 'users')) : query(collection(db, 'users'), where('email', '==', user.email));
+
+    const unsubUsers = onSnapshot(usersQuery, (snap) => {
       setUsers(snap.docs.map(doc => ({ uid: doc.id, ...doc.data() } as UserProfile)));
       setIsUsersLoaded(true);
-    }, (err) => handleFirestoreError(err, OperationType.GET, 'users'));
+    }, (err) => {
+      // If the query fails (e.g. missing index or still permission denied), fallback to just the UID doc
+      if (err.message.includes('permissions') || err.message.includes('index')) {
+        onSnapshot(doc(db, 'users', user.uid), (docSnap) => {
+          if (docSnap.exists()) {
+            setUsers([{ uid: docSnap.id, ...docSnap.data() } as UserProfile]);
+          }
+          setIsUsersLoaded(true);
+        });
+      } else {
+        handleFirestoreError(err, OperationType.GET, 'users');
+      }
+    });
 
     return () => {
       unsubProducts(); unsubSuppliers(); unsubCustomers(); unsubPurchases(); unsubSales(); unsubTransactions(); unsubWarehouses(); unsubCategories(); unsubTransfers(); unsubReturns(); unsubSettings(); unsubUsers();
