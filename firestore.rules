@@ -181,7 +181,7 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && (request.auth.uid == userId || request.auth.token.email == userId) && isValidUser(request.resource.data);
+      allow create: if isAuthenticated() && (isAdmin() || request.auth.uid == userId || request.auth.token.email == userId) && isValidUser(request.resource.data);
       allow update: if isAuthenticated() && (
         isAdmin() || request.auth.uid == userId || request.auth.token.email == userId
       ) && isValidUser(request.resource.data);
