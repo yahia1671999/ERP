@@ -200,7 +200,7 @@ service cloud.firestore {
     match /products/{productId} {
       allow read: if isAuthenticated();
       allow create: if hasPermission('inventory', 'canAdd') && isValidProduct(request.resource.data);
-      allow update: if hasPermission('inventory', 'canEdit') && isValidProduct(request.resource.data);
+      allow update: if (hasPermission('inventory', 'canEdit') || hasPermission('cashier', 'canAdd')) && isValidProduct(request.resource.data);
       allow delete: if hasPermission('inventory', 'canDelete');
     }
 
@@ -220,9 +220,9 @@ service cloud.firestore {
 
     match /customers/{customerId} {
       allow read: if isAuthenticated();
-      allow create: if hasPermission('customers', 'canAdd') && isValidCustomer(request.resource.data);
-      allow update: if hasPermission('customers', 'canEdit') && isValidCustomer(request.resource.data);
-      allow delete: if hasPermission('customers', 'canDelete');
+      allow create: if (hasPermission('customers', 'canAdd') || hasPermission('cashier', 'canAdd')) && isValidCustomer(request.resource.data);
+      allow update: if (hasPermission('customers', 'canEdit') || hasPermission('cashier', 'canEdit')) && isValidCustomer(request.resource.data);
+      allow delete: if hasPermission('customers', 'canDelete') || hasPermission('cashier', 'canDelete');
     }
 
     match /purchases/{purchaseId} {
@@ -234,16 +234,16 @@ service cloud.firestore {
 
     match /sales/{saleId} {
       allow read: if isAuthenticated();
-      allow create: if hasPermission('sales', 'canAdd') && isValidSale(request.resource.data);
-      allow update: if hasPermission('sales', 'canEdit');
-      allow delete: if hasPermission('sales', 'canDelete');
+      allow create: if (hasPermission('sales', 'canAdd') || hasPermission('cashier', 'canAdd')) && isValidSale(request.resource.data);
+      allow update: if hasPermission('sales', 'canEdit') || hasPermission('cashier', 'canEdit');
+      allow delete: if hasPermission('sales', 'canDelete') || hasPermission('cashier', 'canDelete');
     }
 
     match /transactions/{transactionId} {
       allow read: if isAuthenticated();
-      allow create: if hasPermission('accounting', 'canAdd') && isValidTransaction(request.resource.data);
-      allow update: if hasPermission('accounting', 'canEdit');
-      allow delete: if hasPermission('accounting', 'canDelete');
+      allow create: if (hasPermission('accounting', 'canAdd') || hasPermission('cashier', 'canAdd')) && isValidTransaction(request.resource.data);
+      allow update: if hasPermission('accounting', 'canEdit') || hasPermission('cashier', 'canEdit');
+      allow delete: if hasPermission('accounting', 'canDelete') || hasPermission('cashier', 'canDelete');
     }
 
     match /categories/{categoryId} {

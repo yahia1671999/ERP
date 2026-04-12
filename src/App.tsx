@@ -5105,7 +5105,7 @@ export default function App() {
     if (currentUserProfile.role === 'admin') return allItems;
 
     return allItems.filter(item => 
-      item.id === 'dashboard' || (currentUserProfile.allowedScreens && currentUserProfile.allowedScreens.includes(item.id))
+      (currentUserProfile.allowedScreens && currentUserProfile.allowedScreens.includes(item.id))
     );
   }, [t, currentUserProfile]);
 
