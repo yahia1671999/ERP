@@ -4847,6 +4847,7 @@ export default function App() {
   const [settings, setSettings] = useState<SystemSettings>({});
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [isUsersLoaded, setIsUsersLoaded] = useState(false);
+  const [isProfileReady, setIsProfileReady] = useState(false);
   const [confirmData, setConfirmData] = useState<{ title: string, message: string, onConfirm: () => void } | null>(null);
   
   const [unlockedScreens, setUnlockedScreens] = useState<string[]>([]);
@@ -4892,6 +4893,7 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
+      if (!u) setIsProfileReady(false);
     });
     return () => unsubscribe();
   }, []);
@@ -4937,12 +4939,17 @@ export default function App() {
             displayName: user.displayName || docSnap.data().displayName || ''
           });
         }
+        setIsProfileReady(true);
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `users/${user.uid}`);
       }
     };
     
     ensureUserProfile();
+
+    // Only start data listeners if profile is ready or user is the primary admin
+    const isPrimaryAdmin = user.email === 'yahia1671999@gmail.com';
+    if (!isProfileReady && !isPrimaryAdmin) return;
 
     const unsubProducts = onSnapshot(query(collection(db, 'products'), orderBy('name')), (snap) => {
       setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as Product)));
@@ -4998,7 +5005,7 @@ export default function App() {
     return () => {
       unsubProducts(); unsubSuppliers(); unsubCustomers(); unsubPurchases(); unsubSales(); unsubTransactions(); unsubWarehouses(); unsubCategories(); unsubTransfers(); unsubReturns(); unsubSettings(); unsubUsers();
     };
-  }, [user]);
+  }, [user, isProfileReady]);
 
   useEffect(() => {
     if (user && isUsersLoaded && users.length === 0) {
